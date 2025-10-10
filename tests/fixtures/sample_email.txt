@@ -1,0 +1,40 @@
+From: alexis@conseil-tech.fr
+To: facturation@societe.com
+Subject: Facturation Octobre 2025 - Projets Roche, Veolia et SAUR
+Date: 2025-10-01 14:30:00
+
+Bonjour Dimitri,
+
+Voici le détail des projets chez Roche, Veolia et SAUR.
+
+- Projet
+
+NOM Prénom              jours travaillés    coût total
+
+- Modernisation Ligne Production - Multi commande
+
+LEGUAY Elodie           22j                 14452
+GEIG Didier             12j                 7860
+
+
+- Migration Cloud AWS - Temps partiel
+
+LEVIN Jon               7j                  4606
+
+
+- Application Mobile Interne - Basic
+
+RENEE ZHAO Ruike        21j                 15400
+LEVIN Jon               15j                 11370
+DENECE Philippe         22j                 14454
+FINN Chelsea            17j                 11917
+LEVY Daniel             22j                 15400
+
+
+Total:                                      95459
+
+N'hésite pas à me contacter si besoin.
+
+Cordialement,
+
+Alexis.

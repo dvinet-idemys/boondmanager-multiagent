@@ -1,0 +1,21 @@
+From: alexis@conseil-tech.fr
+To: facturation@societe.com
+Subject: Facturation Octobre 2025 - Modernisation Ligne Production
+Date: 2025-10-01 14:30:00
+
+Bonjour Dimitri,
+
+Voici le détail pour le projet Modernisation Ligne Production - Multi commande.
+
+NOM Prénom              jours travaillés    coût total
+
+LEGUAY Elodie           22j                 14452
+GEIG Didier             12j                 7860
+
+Total:                                      22312
+
+N'hésite pas à me contacter si besoin.
+
+Cordialement,
+
+Alexis.
