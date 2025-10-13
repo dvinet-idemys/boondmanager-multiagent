@@ -1,0 +1,115 @@
+{
+  "meta": {
+    "version": "9.0.5.3",
+    "androidMinVersion": "2.30.0",
+    "iosMinVersion": "2.27.0",
+    "isLogged": true,
+    "language": "fr",
+    "timestamp": 1760103130320,
+    "login": "dvinet@idemys.com",
+    "customer": "idemys_sandbox"
+  },
+  "data": {
+    "id": "8",
+    "type": "project",
+    "attributes": {
+      "reference": "Modernisation Ligne Production - Multi commande",
+      "typeOf": 1,
+      "mode": 1,
+      "startDate": "2025-09-01",
+      "creationDate": "2025-09-24T15:08:14+0200",
+      "updateDate": "2025-09-24T15:10:20+0200",
+      "isProjectManager": false,
+      "currencyAgency": 0,
+      "currency": 0,
+      "exchangeRate": 1,
+      "exchangeRateAgency": 1,
+      "workUnitRate": 1,
+      "deliverySuggestFilters": []
+    },
+    "relationships": {
+      "agency": {
+        "data": {
+          "id": "1",
+          "type": "agency"
+        }
+      },
+      "mainManager": {
+        "data": {
+          "id": "2",
+          "type": "resource"
+        }
+      },
+      "pole": {
+        "data": null
+      },
+      "company": {
+        "data": {
+          "id": "5",
+          "type": "company"
+        }
+      },
+      "opportunity": {
+        "data": {
+          "id": "4",
+          "type": "opportunity"
+        }
+      }
+    }
+  },
+  "included": [
+    {
+      "id": "1",
+      "type": "agency",
+      "attributes": {
+        "name": "IDEMYS - SANDBOX",
+        "allowAdvantagesOnProjects": false,
+        "closedPeriods": [
+          {
+            "id": "1",
+            "parentType": "timesreport",
+            "period": ""
+          },
+          {
+            "id": "2",
+            "parentType": "expensesreport",
+            "period": ""
+          },
+          {
+            "id": "3",
+            "parentType": "invoice",
+            "period": ""
+          },
+          {
+            "id": "4",
+            "parentType": "project",
+            "period": ""
+          },
+          {
+            "id": "5",
+            "parentType": "contract",
+            "period": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "5",
+      "type": "company",
+      "attributes": {
+        "name": "Roche",
+        "thumbnail": ""
+      }
+    },
+    {
+      "id": "4",
+      "type": "opportunity",
+      "attributes": {
+        "tools": [],
+        "place": "",
+        "expertiseArea": "-1",
+        "activityAreas": []
+      }
+    }
+  ]
+}

@@ -191,6 +191,40 @@ class BoondManagerClient:
         return await self._make_request(uri)
 
     # ========================================================================
+    # Resource Management
+    # ========================================================================
+
+    async def get_resources(self, keywords: Optional[str] = None) -> dict[str, Any]:
+        """Fetch resources (workers/consultants), optionally filtered by keywords.
+
+        Resources = workers, consultants, or employees who can be assigned to projects.
+
+        Args:
+            keywords: Optional search term (name, email, etc.)
+
+        Returns:
+            Resources data with structure:
+            {
+                "data": [
+                    {
+                        "id": "28",
+                        "attributes": {
+                            "firstName": "Elodie",
+                            "lastName": "Leguay",
+                            "email": "elodie@example.com",
+                            "isActive": true
+                        }
+                    }
+                ]
+            }
+        """
+        if keywords:
+            uri = f"resources?keywords={keywords}"
+        else:
+            uri = "resources"
+        return await self._make_request(uri)
+
+    # ========================================================================
     # Contact Management
     # ========================================================================
 

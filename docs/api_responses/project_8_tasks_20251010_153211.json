@@ -1,0 +1,16 @@
+{
+  "meta": {
+    "totals": {
+      "rows": 0
+    },
+    "version": "9.0.5.3",
+    "androidMinVersion": "2.30.0",
+    "iosMinVersion": "2.27.0",
+    "isLogged": true,
+    "language": "fr",
+    "timestamp": 1760103131749,
+    "login": "dvinet@idemys.com",
+    "customer": "idemys_sandbox"
+  },
+  "data": []
+}

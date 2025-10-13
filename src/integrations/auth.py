@@ -1,39 +1,19 @@
 """BoondManager JWT authentication token generation."""
 
-from typing import Literal
 from datetime import datetime
+from typing import Literal
 
 from jose import jwt
 
 from src.config import config
 
 
-def create_payload(
-    user_token: str,
-    client_token: str,
-    time: float,
-    mode: Literal["normal", "god"],
-) -> dict[str, str | float]:
-    """Create JWT payload for BoondManager authentication.
-
-    Args:
-        user_token: User authentication token
-        client_token: Client authentication token
-        time: Unix timestamp
-        mode: Authentication mode ("normal" or "god")
-
-    Returns:
-        JWT payload dictionary
-    """
-    return {
-        "userToken": user_token,
-        "clientToken": client_token,
-        "time": time,
-        "mode": mode,
-    }
-
-
-def new_token(mode: Literal["normal", "god"] = "normal") -> str:
+def new_token(
+    user_token: str = None,
+    client_token: str = None,
+    client_key: str = None,
+    mode: Literal["normal", "god"] = "normal",
+) -> str:
     """Generate new JWT token for BoondManager API authentication.
 
     Args:
@@ -47,13 +27,23 @@ def new_token(mode: Literal["normal", "god"] = "normal") -> str:
         >>> # Use token in Authorization header: f"Bearer {token}"
     """
     timestamp = datetime.now().timestamp()
-    payload = create_payload(
-        config.boond_user_token,
-        config.boond_client_token,
-        timestamp,
-        mode,
-    )
 
-    token = jwt.encode(payload, config.boond_client_key, algorithm="HS256")
+    if user_token is None:
+        user_token = config.boond_user_token
+
+    if client_token is None:
+        client_token = config.boond_client_token
+
+    if client_key is None:
+        client_key =  config.boond_client_key
+
+    payload = {
+        "userToken": user_token,
+        "clientToken": client_token,
+        "time": timestamp,
+        "mode": mode,
+    }
+
+    token = jwt.encode(payload, client_key, algorithm="HS256")
 
     return token

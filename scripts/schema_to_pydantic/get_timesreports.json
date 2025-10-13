@@ -1,0 +1,260 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "description": "List of timesheets",
+    "type": "object",
+    "properties": {
+        "meta": {
+            "allOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "version": {
+                            "description": "BoondManager's version",
+                            "type": "string"
+                        },
+                        "isLogged": {
+                            "description": "true if user is logged",
+                            "type": "boolean"
+                        },
+                        "language": {
+                            "description": "User's language",
+                            "type": "string",
+                            "enum": [
+                                "fr",
+                                "en",
+                                "es"
+                            ]
+                        }
+                    },
+                    "required": [
+                        "version",
+                        "isLogged",
+                        "language"
+                    ]
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "totals": {
+                            "type": "object",
+                            "properties": {
+                                "rows": {
+                                    "description": "Number total of entities returned",
+                                    "type": "integer",
+                                    "minimum": 0
+                                }
+                            },
+                            "additionalProperties": false
+                        }
+                    }
+                }
+            ]
+        },
+        "data": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "pattern": "^[1-9][0-9]*$",
+                        "database": "TAB_LISTETEMPS.ID_LISTETEMPS"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "timesreport"
+                        ]
+                    },
+                    "attributes": {
+                        "type": "object",
+                        "properties": {
+                            "term": {
+                                "type": "string",
+                                "pattern": "^[0-9]{4}-[0-9]{2}$",
+                                "database": "TAB_LISTETEMPS.LISTETEMPS_DATE"
+                            },
+                            "state": {
+                                "type": "string",
+                                "enum": [
+                                    "savedAndNoValidation",
+                                    "waitingForValidation",
+                                    "validated",
+                                    "rejected"
+                                ],
+                                "database": "TAB_LISTETEMPS.LISTETEMPS_ETAT"
+                            },
+                            "closed": {
+                                "type": "boolean",
+                                "database": "TAB_LISTETEMPS.LISTETEMPS_CLOTURE"
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "relationships": {
+                        "type": "object",
+                        "properties": {
+                            "agency": {
+                                "description": "Timesheet's agency",
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "database": "TAB_LISTETEMPS.ID_SOCIETE"
+                                            },
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "agency"
+                                                ]
+                                            }
+                                        },
+                                        "required": [
+                                            "id",
+                                            "type"
+                                        ],
+                                        "additionalProperties": false
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ],
+                                "additionalProperties": false
+                            },
+                            "resource": {
+                                "description": "Timesheet's resource",
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "database": "TAB_LISTETEMPS.ID_PROFIL"
+                                            },
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "resource"
+                                                ]
+                                            }
+                                        },
+                                        "required": [
+                                            "id",
+                                            "type"
+                                        ],
+                                        "additionalProperties": false
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ],
+                                "additionalProperties": false
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "required": [
+                    "id",
+                    "type"
+                ],
+                "additionalProperties": false
+            },
+            "uniqueItems": true
+        },
+        "included": {
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    {
+                        "description": "Timesheet's resource",
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "pattern": "^[1-9][0-9]*$",
+                                "database": "TAB_PROFIL.ID_PROFIL"
+                            },
+                            "type": {
+                                "type": "string",
+                                "enum": [
+                                    "resource"
+                                ]
+                            },
+                            "attributes": {
+                                "type": "object",
+                                "properties": {
+                                    "firstName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 100,
+                                        "database": "TAB_PROFIL.PROFIL_PRENOM"
+                                    },
+                                    "lastName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 100,
+                                        "database": "TAB_PROFIL.PROFIL_NOM"
+                                    }
+                                },
+                                "additionalProperties": false
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "type"
+                        ],
+                        "additionalProperties": false
+                    },
+                    {
+                        "description": "Timesheet's agency",
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "pattern": "^[1-9][0-9]*$",
+                                "database": "TAB_SOCIETE.ID_SOCIETE"
+                            },
+                            "type": {
+                                "type": "string",
+                                "enum": [
+                                    "agency"
+                                ]
+                            },
+                            "attributes": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 100,
+                                        "database": "TAB_SOCIETE.SOCIETE_RAISON"
+                                    }
+                                },
+                                "additionalProperties": false
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "type"
+                        ],
+                        "additionalProperties": false
+                    }
+                ]
+            },
+            "uniqueItems": true
+        }
+    },
+    "required": [
+        "meta",
+        "data"
+    ],
+    "additionalProperties": false,
+    "id": "schemas/timesReports/search.json"
+}

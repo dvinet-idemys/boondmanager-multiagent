@@ -1,0 +1,191 @@
+{
+  "meta": {
+    "totals": {
+      "rows": 2,
+      "turnoverSignedExcludingTax": 106196,
+      "costsSignedExcludingTax": 89996,
+      "marginSignedExcludingTax": 16200,
+      "profitabilitySigned": 15.254811857320426,
+      "turnoverProductionExcludingTax": 22292,
+      "costsProductionExcludingTax": 18892,
+      "marginProductionExcludingTax": 3400,
+      "profitabilityProduction": 15.25210837968778,
+      "turnoverResourcesExcludingTax": 22292,
+      "costsResourcesExcludingTax": 18892,
+      "turnoverPurchasesAndAdditionalExcludingTax": 0,
+      "costsPurchasesAndAdditionalExcludingTax": 0,
+      "advancedGroupments": []
+    },
+    "version": "9.0.5.3",
+    "androidMinVersion": "2.30.0",
+    "iosMinVersion": "2.27.0",
+    "isLogged": true,
+    "language": "fr",
+    "timestamp": 1760103130703,
+    "login": "dvinet@idemys.com",
+    "customer": "idemys_sandbox"
+  },
+  "data": [
+    {
+      "id": "18",
+      "type": "delivery",
+      "attributes": {
+        "title": "",
+        "startDate": "2025-09-15",
+        "endDate": "2025-12-31",
+        "numberOfDaysInvoicedOrQuantity": 76,
+        "numberOfDaysFree": 0,
+        "regularTimesSimulated": 76,
+        "regularTimesProduction": 12,
+        "regularTimesProductionInWorkUnits": 12,
+        "exceptionalTimesProduction": 0,
+        "exceptionalCalendarsProduction": 0,
+        "expensesSimulated": 0,
+        "expensesProduction": 0,
+        "turnoverProductionExcludingTax": 7860,
+        "costsProductionExcludingTax": 6660,
+        "canShowExpensesSimulated": true,
+        "canShowExpensesProduction": true,
+        "canShowTurnoverProductionExcludingTax": true,
+        "canShowCostsProductionExcludingTax": true,
+        "canReadDelivery": true
+      },
+      "relationships": {
+        "timesReports": {
+          "data": [
+            {
+              "id": "5",
+              "type": "timesreport"
+            }
+          ]
+        },
+        "groupment": {
+          "data": null
+        },
+        "dependsOn": {
+          "data": {
+            "id": "28",
+            "type": "resource"
+          }
+        },
+        "project": {
+          "data": {
+            "id": "8",
+            "type": "project"
+          }
+        }
+      }
+    },
+    {
+      "id": "19",
+      "type": "delivery",
+      "attributes": {
+        "title": "",
+        "startDate": "2025-09-01",
+        "endDate": "2025-12-31",
+        "numberOfDaysInvoicedOrQuantity": 86,
+        "numberOfDaysFree": 0,
+        "regularTimesSimulated": 86,
+        "regularTimesProduction": 22,
+        "regularTimesProductionInWorkUnits": 22,
+        "exceptionalTimesProduction": 0,
+        "exceptionalCalendarsProduction": 0,
+        "expensesSimulated": 0,
+        "expensesProduction": 0,
+        "turnoverProductionExcludingTax": 14432,
+        "costsProductionExcludingTax": 12232,
+        "canShowExpensesSimulated": true,
+        "canShowExpensesProduction": true,
+        "canShowTurnoverProductionExcludingTax": true,
+        "canShowCostsProductionExcludingTax": true,
+        "canReadDelivery": true
+      },
+      "relationships": {
+        "timesReports": {
+          "data": [
+            {
+              "id": "4",
+              "type": "timesreport"
+            }
+          ]
+        },
+        "groupment": {
+          "data": null
+        },
+        "dependsOn": {
+          "data": {
+            "id": "29",
+            "type": "resource"
+          }
+        },
+        "project": {
+          "data": {
+            "id": "8",
+            "type": "project"
+          }
+        }
+      }
+    }
+  ],
+  "included": [
+    {
+      "id": "5",
+      "type": "timesreport",
+      "attributes": {
+        "term": "2025-09"
+      }
+    },
+    {
+      "id": "28",
+      "type": "resource",
+      "attributes": {
+        "lastName": "Leguay",
+        "firstName": "Elodie",
+        "canReadResource": true
+      },
+      "relationships": {
+        "timesReports": {
+          "data": [
+            {
+              "id": "5",
+              "type": "timesreport"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "8",
+      "type": "project",
+      "attributes": {
+        "workUnitRate": 1
+      }
+    },
+    {
+      "id": "4",
+      "type": "timesreport",
+      "attributes": {
+        "term": "2025-09"
+      }
+    },
+    {
+      "id": "29",
+      "type": "resource",
+      "attributes": {
+        "lastName": "Geig",
+        "firstName": "Didier",
+        "canReadResource": true
+      },
+      "relationships": {
+        "timesReports": {
+          "data": [
+            {
+              "id": "4",
+              "type": "timesreport"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

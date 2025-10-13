@@ -5,7 +5,6 @@ description = "Stateless MVP for automated invoice generation from client emails
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "langgraph>=0.2.0",
     "httpx>=0.27.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
@@ -14,6 +13,9 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "tenacity>=8.0.0",
     "langchain-openai>=0.3.35",
+    "deepagents>=0.0.5",
+    "langgraph>=0.6.8",
+    "rich>=14.2.0",
 ]
 
 [project.optional-dependencies]
