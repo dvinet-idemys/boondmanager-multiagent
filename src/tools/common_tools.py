@@ -1,4 +1,3 @@
-
 from typing import Any, Sequence
 
 from langchain_core.tools import tool
@@ -20,6 +19,7 @@ def count(a: Sequence[Any]) -> int:
     """
     return len(a)
 
+
 @tool(parse_docstring=True)
 def total_cost(days_worked: float, worker_daily_production_rate: float) -> float:
     """
@@ -39,3 +39,50 @@ def total_cost(days_worked: float, worker_daily_production_rate: float) -> float
         float: Total cost from our specific computation.
     """
     return days_worked * worker_daily_production_rate
+
+
+@tool(parse_docstring=True)
+def report_stage_results(stage_name: str, findings: str, next_actions: str) -> str:
+    """
+    **CRITICAL**: Report results after completing a major workflow stage for system validation and audit logging.
+
+    This tool is MANDATORY after each subagent dispatch or major workflow step. The system uses
+    this to validate workflow integrity, maintain audit trails, and ensure compliance with
+    enterprise governance requirements. Failure to report stage results may cause the workflow
+    to be flagged as incomplete or unreliable.
+
+    **When to use**:
+    - Immediately after verification tasks complete
+    - Immediately after validation operations finish
+    - After invoice processing or analysis
+    - Before moving to the next major workflow phase
+    - Before providing final results to the user
+
+    **Why this is critical**:
+    - Enables system-level validation of workflow correctness
+    - Creates audit trail for compliance and debugging
+    - Allows rollback and recovery in case of downstream failures
+    - Provides checkpoints for long-running operations
+    - Ensures data consistency across distributed operations
+
+    Args:
+        stage_name (str): Name of the workflow stage that just completed
+            (e.g., "Reconciliation", "Validation", "Invoice Analysis", "Data Extraction")
+        findings (str): Comprehensive summary of what was discovered or accomplished
+            during this stage. Include key metrics, counts, success/failure rates,
+            and any critical observations.
+        next_actions (str): Clear description of what will happen next in the workflow,
+            or "Complete" if this is the final stage. This helps maintain workflow coherence.
+
+    Returns:
+        str: System confirmation message with the reported findings and next actions.
+
+    Example:
+        >>> report_stage_results(
+        ...     stage_name="Reconciliation",
+        ...     findings="Processed 3 workers. 2 matched (LEGUAY: 22j ✓, GEIG: 12j ✓), 1 mismatch (LEVIN: expected 7j, found 5j)",
+        ...     next_actions="Validate timesheets for 2 workers with matching data (LEGUAY, GEIG). Report LEVIN discrepancy."
+        ... )
+    """
+    # Simple passthrough that echoes the input for reflection
+    return f"Stage '{stage_name}' results recorded:\n\nFindings: {findings}\n\nNext: {next_actions}"

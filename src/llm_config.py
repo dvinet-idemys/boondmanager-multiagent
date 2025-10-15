@@ -8,7 +8,7 @@ from langchain_openai import ChatOpenAI
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:1234/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "dummy")
 LLM_MODEL = os.getenv("LLM_MODEL", "openai/gpt-oss-20b")
-LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0"))
+LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
 
 
 def get_llm() -> BaseChatModel:

@@ -106,8 +106,8 @@ Validate dispatch tasks created by the orchestrator before execution to ensure t
 - ✅ All tasks query independent data points that can run in parallel
 ```python
 [
-    ("reconciliation", "How many days did Elodie LEGUAY work in September 2025?"),
-    ("reconciliation", "How many days did Didier GEIG work in September 2025?")
+    ("verification", "How many days did Elodie LEGUAY work in September 2025?"),
+    ("verification", "How many days did Didier GEIG work in September 2025?")
 ]
 ```
 
@@ -115,8 +115,8 @@ Validate dispatch tasks created by the orchestrator before execution to ensure t
 - ❌ Tasks that reference results from other tasks
 ```python
 [
-    ("reconciliation", "What is Elodie's resource ID?"),
-    ("reconciliation", "Using the resource ID from previous query, get timesheet data")
+    ("verification", "What is Elodie's resource ID?"),
+    ("verification", "Using the resource ID from previous query, get timesheet data")
 ]
 ```
 
@@ -163,14 +163,14 @@ Validate dispatch tasks created by the orchestrator before execution to ensure t
     "errors": [
         {
             "task_index": 0,
-            "task": ("reconciliation", "Verify Elodie worked 22 days"),
+            "task": ("verification", "Verify Elodie worked 22 days"),
             "violation": "question_format",
             "details": "Task uses verification verb 'verify' instead of open-ended question",
             "suggestion": "How many days did Elodie LEGUAY work in September 2025?"
         },
         {
             "task_index": 1,
-            "task": ("reconciliation", "How many days did workers work?"),
+            "task": ("verification", "How many days did workers work?"),
             "violation": "atomicity",
             "details": "Task targets multiple workers instead of one",
             "suggestion": "Split into separate tasks, one per worker"
@@ -230,8 +230,8 @@ For each dispatch task, verify:
 **Dispatch Tasks**:
 ```python
 [
-    ("reconciliation", "How many days did Elodie LEGUAY work in September 2025?"),
-    ("reconciliation", "How many days did Didier GEIG work in September 2025?")
+    ("verification", "How many days did Elodie LEGUAY work in September 2025?"),
+    ("verification", "How many days did Didier GEIG work in September 2025?")
 ]
 ```
 
@@ -247,7 +247,7 @@ For each dispatch task, verify:
 **Dispatch Tasks**:
 ```python
 [
-    ("reconciliation", "Verify that Elodie LEGUAY worked 22 days in September 2025")
+    ("verification", "Verify that Elodie LEGUAY worked 22 days in September 2025")
 ]
 ```
 
@@ -262,7 +262,7 @@ For each dispatch task, verify:
 **Dispatch Tasks**:
 ```python
 [
-    ("reconciliation", "How many days did Elodie LEGUAY and Didier GEIG work in September 2025?")
+    ("verification", "How many days did Elodie LEGUAY and Didier GEIG work in September 2025?")
 ]
 ```
 
@@ -277,7 +277,7 @@ For each dispatch task, verify:
 **Dispatch Tasks**:
 ```python
 [
-    ("reconciliation", "How many days did Elodie work?")
+    ("verification", "How many days did Elodie work?")
 ]
 ```
 

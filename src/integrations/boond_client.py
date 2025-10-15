@@ -7,13 +7,13 @@ from urllib.parse import urljoin
 import httpx
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 
-from src.integrations.auth import new_token
 from src.config import config
+from src.integrations.auth import new_token
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ class BoondManagerClient:
     async def get_times_report(self, timesreport_id: int) -> dict[str, Any]:
         """Get timesheet/CRA data by ID.
 
-        Used for reconciliation to compare declared days vs actual CRA entries.
+        Used for verification to compare declared days vs actual CRA entries.
 
         Args:
             timesreport_id: Timesheet report ID
@@ -140,6 +140,95 @@ class BoondManagerClient:
             Timesheet data with worked days breakdown
         """
         return await self._make_request(f"times-reports/{timesreport_id}")
+
+    async def validate_timesheet(
+        self, timesheet_id: int, expected_validator_id: int
+    ) -> dict[str, Any]:
+        """Validate a timesheet for a specific resource.
+
+        This endpoint validates a pending timesheet, marking it as approved
+        by the expected validator (manager/supervisor).
+
+        Args:
+            timesheet_id: Unique timesheet identifier to validate
+            expected_validator_id: Resource ID of the validator (manager who approves)
+
+        Returns:
+            Validated timesheet data with warnings and validation metadata:
+            {
+                "meta": {
+                    "version": "...",
+                    "warnings": [
+                        {
+                            "code": "moreThanNumberOfWorkingDays",
+                            "detail": "Warning message",
+                            "project": {"id": "123", "reference": "PRJ-ABC"},
+                            "delivery": {"id": "456", ...}
+                        }
+                    ],
+                    "expectedValidatorsAllowedForValidate": [...],
+                    "expectedValidatorsAllowedForUnvalidate": [...],
+                    "expectedValidatorsAllowedForReject": [...]
+                },
+                "data": {
+                    "id": "5",
+                    "type": "timesreport",
+                    "attributes": {
+                        "term": "2025-09",
+                        "state": "validated",
+                        "closed": false
+                    }
+                }
+            }
+
+        Warning codes include:
+            - moreThanNumberOfWorkingDays: Over expected work days
+            - workplaceTimesMoreThanNumberOfWorkingDays: Workplace hours exceeded
+            - noDeliveryOnProject: Missing delivery assignment
+            - outsideContractDates: Work outside contract period
+            - noSignedTimesheet: Timesheet not signed by worker
+        """
+        uri = f"times-reports/{timesheet_id}/validate?expectedValidator={expected_validator_id}"
+        return await self._make_request(uri, method="POST")
+
+    async def unvalidate_timesheet(
+        self, timesheet_id: int, expected_validator_id: int
+    ) -> dict[str, Any]:
+        """Unvalidate (revoke approval of) a previously validated timesheet.
+
+        This endpoint unvalidates a timesheet, reverting it from "validated" state
+        back to "pending" state. Useful for corrections or when validation was done in error.
+
+        Args:
+            timesheet_id: Unique timesheet identifier to unvalidate
+            expected_validator_id: Resource ID of the validator (manager who revokes)
+
+        Returns:
+            Unvalidated timesheet data with warnings and validation metadata:
+            {
+                "meta": {
+                    "version": "...",
+                    "warnings": [...],
+                    "expectedValidatorsAllowedForValidate": [...],
+                    "expectedValidatorsAllowedForUnvalidate": [...],
+                    "expectedValidatorsAllowedForReject": [...]
+                },
+                "data": {
+                    "id": "5",
+                    "type": "timesreport",
+                    "attributes": {
+                        "term": "2025-09",
+                        "state": "pending",  # State changed back to pending
+                        "closed": false
+                    }
+                }
+            }
+
+        Note: Unvalidating a timesheet may block invoicing workflows that depend
+        on validated timesheets. Use when corrections are needed before billing.
+        """
+        uri = f"times-reports/{timesheet_id}/unvalidate?expectedValidator={expected_validator_id}"
+        return await self._make_request(uri, method="POST")
 
     # ========================================================================
     # Order Management
@@ -173,21 +262,75 @@ class BoondManagerClient:
     # Invoice Generation
     # ========================================================================
 
-    async def generate_invoice(self, month: str, project_id: int) -> dict[str, Any]:
-        """Generate invoice using PostProduction.
+    async def generate_invoice(
+        self,
+        month: str,
+        project_id: int,
+        delivery_id: Optional[int] = None,
+        resource_id: Optional[int] = None,
+        contact_id: Optional[int] = None,
+        company_id: Optional[int] = None,
+        opportunity_id: Optional[int] = None,
+        product_id: Optional[int] = None,
+        contract_id: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """Generate invoice using PostProduction with advanced filtering.
+
+        This endpoint generates invoices for post-production projects with multiple
+        filtering options. Each keyword parameter corresponds to a specific entity
+        type that can filter the results.
 
         Args:
-            month: Target month in format "YYYY-MM"
-            project_id: Project ID
+            month: Target month in format "YYYY-MM" (required)
+            project_id: Project unique identifier (required)
+            delivery_id: Filter by delivery unique identifier (optional)
+            resource_id: Filter by resource unique identifier (optional)
+            contact_id: Filter by contact unique identifier (optional)
+            company_id: Filter by company unique identifier (optional)
+            opportunity_id: Filter by opportunity unique identifier (optional)
+            product_id: Filter by product unique identifier (optional)
+            contract_id: Filter by contract unique identifier (optional)
 
         Returns:
             Invoice generation response with invoice ID
 
         Example:
             >>> client = BoondManagerClient()
+            >>> # Generate invoice for specific project
             >>> result = await client.generate_invoice("2025-10", 123)
+            >>>
+            >>> # Generate invoice with additional filters
+            >>> result = await client.generate_invoice(
+            ...     month="2025-10",
+            ...     project_id=123,
+            ...     company_id=456,
+            ...     contact_id=789
+            ... )
         """
-        uri = f"apps/post-production/projects?month={month}&keywords=PRJ{project_id}&generateInvoices=true"
+        # Build keywords parameter from all ID filters
+        keywords_parts = [f"PRJ{project_id}"]  # project_id is mandatory
+
+        if delivery_id:
+            keywords_parts.append(f"MIS{delivery_id}")
+        if resource_id:
+            keywords_parts.append(f"COMP{resource_id}")
+        if contact_id:
+            keywords_parts.append(f"CCON{contact_id}")
+        if company_id:
+            keywords_parts.append(f"CSOC{company_id}")
+        if opportunity_id:
+            keywords_parts.append(f"AO{opportunity_id}")
+        if product_id:
+            keywords_parts.append(f"PROD{product_id}")
+        if contract_id:
+            keywords_parts.append(f"CTR{contract_id}")
+
+        # Build query parameters
+        keywords = " ".join(keywords_parts)
+        uri = (
+            f"apps/post-production/projects?month={month}&keywords={keywords}&generateInvoices=true"
+        )
+
         return await self._make_request(uri)
 
     # ========================================================================
@@ -237,3 +380,76 @@ class BoondManagerClient:
             Contact data with emails and company associations
         """
         return await self._make_request("contacts")
+
+    # ========================================================================
+    # Invoice Management
+    # ========================================================================
+
+    async def search_invoices(
+        self,
+        invoice_id: Optional[int] = None,
+        order_id: Optional[int] = None,
+        project_id: Optional[int] = None,
+        contact_id: Optional[int] = None,
+        company_id: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """Search invoices by ID filters.
+
+        Args:
+            invoice_id: Filter by specific invoice ID
+            order_id: Filter by order ID
+            project_id: Filter by project ID
+            contact_id: Filter by contact ID
+            company_id: Filter by company ID
+
+        Returns:
+            Invoice search results
+
+        Example:
+            >>> # Search all invoices for a project
+            >>> result = await client.search_invoices(project_id=123)
+            >>>
+            >>> # Search invoices for a company
+            >>> result = await client.search_invoices(company_id=456)
+        """
+        params = {}
+
+        # Build keywords parameter from ID filters
+        keywords_parts = []
+        if invoice_id:
+            keywords_parts.append(f"FACT{invoice_id}")
+        if order_id:
+            keywords_parts.append(f"BDC{order_id}")
+        if project_id:
+            keywords_parts.append(f"PRJ{project_id}")
+        if contact_id:
+            keywords_parts.append(f"CCON{contact_id}")
+        if company_id:
+            keywords_parts.append(f"CSOC{company_id}")
+
+        if keywords_parts:
+            params["keywords"] = " ".join(keywords_parts)
+
+        return await self._make_request("invoices", params=params)
+
+    async def get_invoice(self, invoice_id: int) -> dict[str, Any]:
+        """Get basic invoice data by ID.
+
+        Args:
+            invoice_id: Invoice unique identifier
+
+        Returns:
+            Invoice basic data including reference, dates, amounts, and relationships
+        """
+        return await self._make_request(f"invoices/{invoice_id}")
+
+    async def get_invoice_information(self, invoice_id: int) -> dict[str, Any]:
+        """Get detailed invoice information (much more detailed than basic).
+
+        Args:
+            invoice_id: Invoice unique identifier
+
+        Returns:
+            Detailed invoice data with line items, payments, documents, and full details
+        """
+        return await self._make_request(f"invoices/{invoice_id}/information")

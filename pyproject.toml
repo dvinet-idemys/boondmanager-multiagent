@@ -13,9 +13,10 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "tenacity>=8.0.0",
     "langchain-openai>=0.3.35",
-    "deepagents>=0.0.5",
-    "langgraph>=0.6.8",
     "rich>=14.2.0",
+    "langchain>=1.0.0a14",
+    "langgraph>=1.0.0a4",
+    "deepagents>=0.0.12rc1",
 ]
 
 [project.optional-dependencies]
@@ -64,6 +65,7 @@ asyncio_mode = "auto"
 
 [dependency-groups]
 dev = [
+    "black>=25.9.0",
     "pytest>=8.4.2",
     "pytest-asyncio>=1.2.0",
     "pytest-cov>=7.0.0",

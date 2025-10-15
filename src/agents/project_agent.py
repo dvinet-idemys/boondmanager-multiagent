@@ -9,6 +9,7 @@ from langchain_core.tools import tool
 from langgraph.graph.state import CompiledStateGraph
 
 from src.llm_config import get_llm
+from src.middleware.parse_fail_check import CheckParsingFailureMiddleware
 from src.tools.project_tools import (
     get_project_by_id,
     get_project_deliveries,
@@ -135,6 +136,7 @@ def create_project_agent(
             get_project_orders,
             get_project_deliveries
         ],
+        middleware=[CheckParsingFailureMiddleware()],
         system_prompt=PROJECT_AGENT_PROMPT,
     )
 

@@ -9,6 +9,7 @@ from langchain_core.tools import tool
 from langgraph.graph.state import CompiledStateGraph
 
 from src.llm_config import get_llm
+from src.middleware.parse_fail_check import CheckParsingFailureMiddleware
 from src.tools.common_tools import count
 from src.tools.timesheet_tools import get_resource_timesheets, get_timesheet_by_id
 
@@ -126,6 +127,7 @@ def create_timesheet_agent(
             get_timesheet_by_id,
             count
         ],
+        middleware=[CheckParsingFailureMiddleware()],
         system_prompt=TIMESHEET_AGENT_PROMPT,
     )
 

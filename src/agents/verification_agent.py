@@ -11,12 +11,13 @@ from src.agents.resource_agent import resource_agent_tool
 from src.agents.timesheet_agent import timesheet_agent_tool
 from src.format_utils import format_message
 from src.llm_config import get_llm
+from src.middleware.parse_fail_check import CheckParsingFailureMiddleware
 from src.tools.common_tools import total_cost
 
-PROJECT_AGENT_PROMPT = """You are a specialized agent for requesting data from various subagents handling data from BoondManager CRM.
+VERIFICATION_AGENT_PROMPT = """You are a specialized agent for requesting data from various subagents handling data from BoondManager CRM.
 
 Your primary responsibilities:
-1. **Understand natural language queries** about reconciliation requests:
+1. **Understand natural language queries** about verification requests:
     Matching projects, workers, tasks, and orders from our internal data to external data
 2. **Select the right subagents to call to fetch the requested data
 3. **Parse and synthesize** the subagent responses into clear, machine-readable answers
@@ -24,7 +25,7 @@ Your primary responsibilities:
 
 ## Core Capabilities
 
-### Reconciliation
+### Data Verification
 
 - Use the subagents at your disposal to request information from various parts of the internal database.
 - Go from external data with arbitrary format, and find the corresponding data in the system.
@@ -77,16 +78,16 @@ Remember your audience is another agent, not a human.
 """
 
 
-def create_reconciliation_agent(
+def create_verification_agent(
     model: BaseChatModel | None = None,
 ) -> CompiledStateGraph[AgentState, Any, AgentState, AgentState]:
-    """Create a standalone reconciliation agent with all fetching-related subagents.
+    """Create a standalone verification agent with all fetching-related subagents.
 
     Args:
         model: LLM model to use. If None, uses default from llm_config.
 
     Returns:
-        Configured LangGraph agent ready to handle reconciliation queries.
+        Configured LangGraph agent ready to handle verification queries.
     """
     if model is None:
         model = get_llm()
@@ -99,25 +100,57 @@ def create_reconciliation_agent(
             resource_agent_tool,
             total_cost,
         ],
-        system_prompt=PROJECT_AGENT_PROMPT,
+        middleware=[CheckParsingFailureMiddleware()],
+        system_prompt=VERIFICATION_AGENT_PROMPT,
     )
 
     return agent
 
 
 @tool(parse_docstring=True)
-async def reconciliation_agent_tool(prompt: str):
-    """
+async def verification_agent_tool(prompt: str):
+    """Verification agent for data verification and matching workflows.
+
+    ## Required Information for Verification (MANDATORY)
+    When dispatching verification queries, ALWAYS include:
+
+    1. **Time Period** (REQUIRED):
+       - Month AND year (e.g., "September 2025", "October 2024")
+       - Time period is NON-NEGOTIABLE for accurate verification
+       - Format: "[MONTH YEAR]" or "YYYY-MM"
+
+    2. **Worker Information** (REQUIRED):
+       - Full worker name (First and Last)
+       - Use exact spelling
+       - Include full name even if abbreviated in source
+
+    3. **Project Information** (HIGHLY RECOMMENDED):
+       - Project name or reference when available
+       - Helps narrow down correct timesheets and deliveries
+       - Reduces ambiguity for workers on multiple projects
+
     ## Core Capabilities
 
-    ### Data Reconciliation
+    ### Data Verification
     - Match projects, workers, tasks, and orders from internal data to external data
     - Verify worker time and costs against external records
     - Cross-reference data across project, timesheet, and resource systems
 
+    ### Time Entry Verification
+    - Verify worker time entries match expected values from external sources (emails, reports)
+    - Compare actual days worked against reported days for specific time periods
+    - **CRITICAL**: ALL verification tasks MUST include COMPLETE information
+
+    ### Prompt Format Requirements
+    - ✅ CORRECT: "How many days did Elodie LEGUAY work on project 'Modernisation Ligne Production' in September 2025?"
+    - ✅ CORRECT: "How many days did Jon LEVIN work in September 2025?" (if project unknown)
+    - ❌ WRONG: "How many days did Elodie work?" (missing last name, missing time period)
+    - ❌ WRONG: "Verify worker worked 22 days" (missing worker name, missing time period)
+    - ❌ WRONG: "Check Elodie LEGUAY's timesheet" (missing time period)
+
     ### Multi-Source Data Synthesis
     - Query multiple subagents (project, timesheet, resource) to gather complete information
-    - Chain tools sequentially to build comprehensive reconciliation reports
+    - Chain tools sequentially to build comprehensive verification reports
     - Handle complex verification scenarios requiring data from multiple systems
 
     ### Total Cost Computation
@@ -130,30 +163,36 @@ async def reconciliation_agent_tool(prompt: str):
     - Timesheet agent: Retrieve daily time entries and work patterns
     - Resource agent: Look up worker information and identifiers
 
+    ## Example Verification Queries
+    - "How many days did worker 'John Doe' work in September 2025?" ✅
+    - "Verify Elodie LEGUAY's timesheet entries for October 2024" ✅
+    - "Check if Jon LEVIN worked 7 days in September 2025" ✅
+    - "Was total cost for worker Jon LEVIN on project X 4680 in September 2025?" ✅
+
     Args:
-        prompt (str): A clear and concise prompt to send to the agent as input.
+        prompt (str): A clear and concise prompt with full context (including time period for verification).
     """
 
-    async for message in create_reconciliation_agent().astream({"messages": [("user", prompt)]}):
+    async for message in create_verification_agent().astream({"messages": [("user", prompt)]}):
         # # Print the agent's response
         response = message.get("tools", {}) or message.get("model", {})
         for msg in response.get("messages", []):
-            format_message(msg, pad_left = 2)
+            format_message(msg, pad_left=2)
             # if hasattr(msg, "content") and msg.content:
             #     print(f"Agent: {msg.content}")
 
     return msg.content
 
-    ret = await create_reconciliation_agent().ainvoke({"messages": prompt})
+    ret = await create_verification_agent().ainvoke({"messages": prompt})
 
     return ret.get("messages", [""])[-1].content
 
 
 async def demo_project_agent():
     """Demo function to test the project agent with example queries."""
-    print("=== BoondManager Reconciliation Agent Demo ===\n")
+    print("=== BoondManager Verification Agent Demo ===\n")
 
-    agent = create_reconciliation_agent()
+    agent = create_verification_agent()
 
     # Example queries
     queries = [

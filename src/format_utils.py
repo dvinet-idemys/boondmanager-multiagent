@@ -54,7 +54,7 @@ def format_messages(messages, pad_left: int = 0):
                     pad=(0, 0, 0, pad_left),
                 )
             )
-        elif msg_type == "Ai":
+        elif msg_type in ["Ai", "AI"]:
             console.print(
                 Padding(
                     Panel(content, title="🤖 Assistant", border_style="green"),
