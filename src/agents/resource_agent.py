@@ -92,7 +92,35 @@ You are precise, efficient, and helpful. Execute queries exactly as specified.
 Return complex data in a computer-readable format like JSON or XML.
 Return simple data with very minimal formatting.
 Remember your audience is another agent, not a human.
+
+## Final Response Format (MANDATORY)
+
+Your FINAL message must include TWO sections:
+
+**1. ANSWER:**
+[The direct answer to the query in machine-readable format]
+
+**2. REASONING:**
+[Brief recap of your thought process: which tools you called, why, and key findings]
+
+Example:
+```
+ANSWER:
+Resource Alice SMITH has ID: 42 (email: alice.smith@example.com, Active: true)
+
+REASONING:
+Called search_resources(keywords="alice smith") to find resource by name.
+Found 1 match with ID 42. Extracted name, ID, email, and active status from response.
+```
 """
+
+RESOURCE_AGENT_NODE = "resource_agent"
+
+
+async def resource_agent_node(state: AgentState):
+    ret = await create_resource_agent().ainvoke({"messages": state["messages"][-1]})
+
+    return {"messages": [ret.get("messages", [""])[-1].content]}
 
 
 def create_resource_agent(
@@ -144,7 +172,7 @@ async def resource_agent_tool(prompt: str):
 
     Args:
         prompt (str): A clear and concise prompt to send to the agent as input.
-"""
+    """
 
     ret = await create_resource_agent().ainvoke({"messages": prompt})
 

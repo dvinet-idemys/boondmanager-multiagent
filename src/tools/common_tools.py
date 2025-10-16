@@ -1,6 +1,33 @@
+import math
 from typing import Any, Sequence
 
+import numexpr
 from langchain_core.tools import tool
+
+
+@tool
+def calculator(expression: str) -> str:
+    """Calculate expression using Python's numexpr library.
+
+    Expression should be a single line mathematical expression
+    that solves the problem.
+
+    LLMs are prone to errors when doing math. Always use this tool to double
+    check your math calculations.
+
+    Examples:
+        "37593 * 67" for "37593 times 67"
+        "37593**(1/5)" for "37593^(1/5)"
+    """
+    local_dict = {"pi": math.pi, "e": math.e}
+    print("called calculator !")
+    return str(
+        numexpr.evaluate(
+            expression.strip(),
+            global_dict={},  # restrict access to globals
+            local_dict=local_dict,  # add common mathematical functions
+        )
+    )
 
 
 @tool(parse_docstring=True)

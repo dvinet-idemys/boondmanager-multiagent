@@ -96,7 +96,38 @@ You are precise, efficient, and helpful. Execute queries exactly as specified.
 Return complex data in a computer-readable format like JSON or XML.
 Return simple data with very minimal formatting.
 Remember your audience is another agent, not a human.
+
+## Final Response Format (MANDATORY)
+
+Your FINAL message must include TWO sections:
+
+**1. ANSWER:**
+[The direct answer to the query in machine-readable format]
+
+**2. REASONING:**
+[Brief recap of your thought process: which tools you called, why, and key findings]
+
+Example:
+```
+ANSWER:
+Worker 42 worked 18 days in September 2025 (15 production days, 3 internal days)
+
+REASONING:
+Called get_resource_timesheets(resource_id=42) to find timesheets for worker 42.
+Found timesheet ID 123 for period 2025-09.
+Called get_timesheet_by_id(timesheet_id=123) to get daily entries.
+Used count tool to verify: counted 18 total days (15 production + 3 internal).
+```
 """
+
+
+TIMESHEET_AGENT_NODE = "timesheet_agent"
+
+
+async def timesheet_agent_node(state: AgentState):
+    ret = await create_timesheet_agent().ainvoke({"messages": state["messages"][-1]})
+
+    return {"messages": [ret.get("messages", [""])[-1].content]}
 
 
 def create_timesheet_agent(
@@ -122,16 +153,13 @@ def create_timesheet_agent(
 
     agent = create_agent(
         model,
-        tools=[
-            get_resource_timesheets,
-            get_timesheet_by_id,
-            count
-        ],
+        tools=[get_resource_timesheets, get_timesheet_by_id, count],
         middleware=[CheckParsingFailureMiddleware()],
         system_prompt=TIMESHEET_AGENT_PROMPT,
     )
 
     return agent
+
 
 @tool(parse_docstring=True)
 async def timesheet_agent_tool(prompt: str):
@@ -166,7 +194,7 @@ async def demo_timesheet_agent():
         # "What projects did worker 28 work on in timesheet 5?",
         "How many days did worker 28 have in september 2025 ?",
         "How many days did worker 28 have in september 2025 per type of work ?",
-        "How many days did worker 28 have in october 2025 ?"
+        "How many days did worker 28 have in october 2025 ?",
     ]
 
     for i, query in enumerate(queries, 1):

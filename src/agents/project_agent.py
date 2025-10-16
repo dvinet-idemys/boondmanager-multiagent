@@ -7,6 +7,7 @@ from langchain.agents import AgentState, create_agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import tool
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import Command
 
 from src.llm_config import get_llm
 from src.middleware.parse_fail_check import CheckParsingFailureMiddleware
@@ -103,7 +104,38 @@ You are precise, efficient, and helpful. Execute queries exactly as specified.
 Return complex data in a computer-readable format like JSON or XML.
 Return simple data with very minimal formating.
 Remember your audience is another agent, not a human.
+
+## Final Response Format (MANDATORY)
+
+Your FINAL message must include TWO sections:
+
+**1. ANSWER:**
+[The direct answer to the query in machine-readable format]
+
+**2. REASONING:**
+[Brief recap of your thought process: which tools you called, why, and key findings]
+
+Example:
+```
+ANSWER:
+Project 'Data Platform Migration' has ID: 15 (State: Active)
+Workers: Alice SMITH (ID: 42), Bob JONES (ID: 56)
+
+REASONING:
+Called search_projects(keywords="Data Platform Migration") to find project by name.
+Found project ID 15 with state "Active".
+Called get_project_productivity(project_id=15) to get workers.
+Extracted 2 workers with their IDs from productivity data.
+```
 """
+
+PROJECT_AGENT_NODE = "project_agent"
+
+
+async def project_agent_node(state: AgentState):
+    ret = await create_project_agent().ainvoke({"messages": state["messages"][-1]})
+
+    return {"messages": [ret.get("messages", [""])[-1].content]}
 
 
 def create_project_agent(
@@ -134,13 +166,14 @@ def create_project_agent(
             get_project_by_id,
             get_project_productivity,
             get_project_orders,
-            get_project_deliveries
+            get_project_deliveries,
         ],
         middleware=[CheckParsingFailureMiddleware()],
         system_prompt=PROJECT_AGENT_PROMPT,
     )
 
     return agent
+
 
 @tool(parse_docstring=True)
 async def project_agent_tool(prompt: str):
@@ -169,7 +202,6 @@ async def project_agent_tool(prompt: str):
     ret = await create_project_agent().ainvoke({"messages": prompt})
 
     return ret.get("messages", [""])[-1].content
-
 
 
 async def demo_project_agent():

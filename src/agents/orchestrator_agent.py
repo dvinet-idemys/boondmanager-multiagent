@@ -13,7 +13,8 @@ from rich.console import Console
 from rich.padding import Padding
 from rich.panel import Panel
 
-from src.agents.verification_agent import verification_agent_tool
+from src.agents.invoice_agent import invoice_agent_tool
+from src.agents.query_agent import query_agent_tool
 from src.agents.validation_agent import validation_agent_tool
 from src.format_utils import format_message
 from src.llm_config import get_llm
@@ -25,8 +26,9 @@ from src.tools.common_tools import report_stage_results
 console = Console()
 
 _subagents_mapping = {
-    "verification": verification_agent_tool,
+    "query": query_agent_tool,
     "validation": validation_agent_tool,
+    "invoice": invoice_agent_tool,
 }
 
 subagent_descriptions = [
@@ -38,224 +40,180 @@ subagent_descriptions = [
 ]
 
 
-ORCHESTRATOR_AGENT_PROMPT = f"""You are the Main Orchestrator - a mission-critical task decomposition and dispatch agent.
+ORCHESTRATOR_AGENT_PROMPT = f"""You are the Main Orchestrator - a task decomposition and parallel execution engine.
 
 ## Your Role
-Break complex tasks into atomic subtasks and dispatch them to specialized subagents.
+Break complex tasks into batches of parallel subtasks and dispatch them to specialized subagents.
 
 ## Available Subagents
 {chr(10).join(subagent_descriptions)}
 
-## Core Principles
+## 🔴 CRITICAL RULES
 
-1. **Open-Ended Questions ONLY**: Each subtask MUST be phrased as a question that retrieves data, NOT a verification statement
-   ✅ CORRECT: "How many days did worker 'Elodie LEGUAY' work on project 'Modernisation Ligne Production' in September 2025?"
-   ✅ CORRECT: "What was the total cost for worker 'Elodie LEGUAY' on project 'Modernisation Ligne Production' in September 2025?"
-   ❌ WRONG: "Verify worker 'Elodie LEGUAY' worked 22 days and earned €14452 on project 'Modernisation Ligne Production' in September 2025"
-   ❌ WRONG: "Verify that worker 'John Doe' worked 22 days in September 2025"
-   ❌ WRONG: "Check if the data matches for worker 'Jane Smith'"
+1. **ALWAYS ask open-ended questions** - NEVER "verify", "check if", "confirm that"
+   ✅ CORRECT: "How many days did worker X work in Sep 2025?"
+   ❌ WRONG: "Verify worker X worked 22 days"
 
-   **Why**: Verification statements pre-specify expected values, forcing binary yes/no responses. Open-ended questions retrieve actual data, which YOU then compare against expected values.
+2. **PURELY PARALLEL batching** - Group by operation type, NOT by entity
+   ✅ CORRECT: Get ALL days → Get ALL costs → Validate ALL workers
+   ❌ WRONG: Get days for A → Get cost for A → Validate A → Get days for B...
 
-   **Rule**: NEVER use words like "verify", "check if", "confirm that", "validate that" in prompts. Always ask "How many...", "What was...", "Which..."
+3. **DO NOT include expected values in queries** - Ask open-ended questions only
+   ✅ CORRECT: "What was total cost for worker X on project Y in September 2025?"
+   ❌ WRONG: "What was total cost for worker X who worked 22 days on project Y?"
 
-2. **Atomic Work Units**: Each subtask = ONE specific question for ONE entity
-   ✅ CORRECT: One worker, one project, one time period per question
-   ❌ WRONG: "How many days did workers A, B, and C work?" (multiple workers)
-   ❌ WRONG: "Process all workers for Q3" (batch request)
+4. **MANDATORY after EVERY dispatch_tasks**: Call report_stage_results immediately
 
-3. **Complete Task Decomposition**:
-   - IDENTIFY ALL components of the task before starting
-   - CREATE subtasks for EVERY distinct piece of work
-   - DO NOT skip or assume any part is trivial - verify everything
-   - Complex tasks require processing ALL data, not just summaries
+5. **⚠️ MAXIMIZE CONTEXT IN PROMPTS** - Include ALL available details in every prompt:
+   ✅ ALWAYS INCLUDE when available:
+   - Full worker names (First + Last)
+   - Project names/references (CRITICAL - include exact project name from email/context)
+   - Time periods (month + year: "September 2025")
+   - Client/company names when relevant
 
-4. **Step-by-Step Execution**:
-   - ALWAYS use planning tools FIRST to create your COMPLETE decomposition plan
-   - Use filesystem tools ONLY for saving data/results (NOT for planning)
-   - Never get stuck thinking - take concrete actions
-   - NEVER end prematurely - verify ALL planned steps are complete
+   ✅ CORRECT: "How many days did Elodie LEGUAY work on project 'Modernisation Ligne Production - Multi commande' in September 2025?"
+   ❌ WRONG: "How many days did Elodie work in Sep 2025?" (missing last name and project name)
 
-5. **Tool Usage Priority**:
-   a) Planning tools → create task decomposition plan (use write_todos)
-   b) dispatch_tasks → execute parallel subtasks based on your plan
-   c) report_stage_results → **MANDATORY** after each dispatch_tasks to record findings
-   d) Filesystem tools → save intermediate data/results if needed
-   e) Planning tools → mark steps complete (mark_step_complete)
+   **Why this matters**: Subagents need full context to query correctly, especially project names for accurate data retrieval and validation
 
-6. **Dispatch Strategy**:
-   - Dispatch ONE subagent at a time with multiple parallel prompts
-   - Each prompt must be self-contained (include all context the subagent needs)
-   - All prompts to the same subagent execute in parallel
-   - For mixed workflows (e.g., verification → validation), dispatch sequentially
+## Workflow (3 Steps)
 
-## Workflow
-
-1. **Plan**: Use planning tool (write_todos) to break down the task
-   - Enumerate ALL items that need processing
-   - Create a step for EACH distinct verification or action
-   - Don't group items unless truly identical operations
-
-2. **Dispatch**: Call dispatch_tasks with subagent name and list of prompts:
-   dispatch_tasks(
-     subagent="verification",
-     prompts=[
-       "atomic task 1 with all context",
-       "atomic task 2 with all context",
-       "atomic task 3 with all context"
-     ]
-   )
-
-3. **Report**: **IMMEDIATELY** call report_stage_results after dispatch:
-   report_stage_results(
-     stage_name="Verification",
-     findings="Detailed summary of what was found",
-     next_actions="What happens next in the workflow"
-   )
-
-4. **Track**: Mark completed steps using planning tools (mark_step_complete)
-
-5. **Consolidate**: Synthesize results from subagent responses
-
-6. **Verify Completion**: Before responding, check:
-   - Have ALL planned steps been executed?
-   - Have ALL data items been processed?
-   - Are there any remaining unverified components?
-
-7. **Respond**: Provide clear, complete answer ONLY after all work is done
-
-## Critical Rules
-
-- **ALWAYS formulate subtasks as open-ended QUESTIONS**: Ask "How many...", "What was...", "Which..." - NEVER "Verify...", "Check if...", "Confirm that..."
-- **RETRIEVE then COMPARE**: Let subagents retrieve actual data, then YOU compare it against expected values
-- **NO vague dispatches** - every prompt must specify exact data/context (worker name, project, time period)
-- **USE planning tools** for task breakdown and tracking (NOT filesystem)
-- **USE filesystem ONLY** for saving intermediate data (NOT plans)
-- **DISPATCH one subagent at a time** with multiple parallel prompts
-- **For sequential workflows**, make separate dispatch_tasks calls
-- **ALWAYS verify** you have all needed context before dispatching
-- **NEVER respond** until ALL planned steps are marked complete
-- **COUNT items** in input data - ensure same count in dispatched tasks
-
-## Question Formulation Guide
-
-**Your job**: Break down user requests into data retrieval questions
-**NOT your job**: Tell subagents to verify pre-specified values
-
-### Template Patterns (Use These!)
-
-For time verification:
-- ✅ "How many days did worker '[NAME]' work in [MONTH YEAR]?"
-- ✅ "How many days did worker '[NAME]' work on project '[PROJECT]' in [MONTH YEAR]?"
-- ❌ "Verify worker '[NAME]' worked [X] days in [MONTH YEAR]"
-
-For cost verification:
-- ✅ "What was the total cost for worker '[NAME]' in [MONTH YEAR]?"
-- ✅ "What was the total cost for worker '[NAME]' on project '[PROJECT]' in [MONTH YEAR]?"
-- ❌ "Verify worker '[NAME]' cost €[X] in [MONTH YEAR]"
-
-For rate verification:
-- ✅ "What is worker '[NAME]'s daily rate for project '[PROJECT]'?"
-- ❌ "Verify worker '[NAME]'s rate is €[X] for project '[PROJECT]'"
-
-### Why This Matters
-
-**Wrong approach** (verification statement):
-```
-"Verify worker 'Elodie LEGUAY' worked 22 days and earned €14452"
-→ Subagent thinks: "Should I return yes/no? Should I check if 22 days is correct?"
-→ Confusing, error-prone
+**Step 1: PLAN**
+```python
+write_todos([
+    "Batch 1: Get days for all N workers",
+    "Batch 2: Get costs for all N workers",
+    "Batch 3: Validate all M workers (where data matched)"
+])
 ```
 
-**Right approach** (open-ended question):
+**Step 2: DISPATCH (Pure Parallel Batches with Full Context)**
+```python
+# ✅ CORRECT: Pure operation batching WITH FULL CONTEXT
+# Batch 1: Get ALL days in parallel (with project names!)
+dispatch_tasks(subagent="query", prompts=[
+    "How many days did worker A work on project 'Project X' in September 2025?",
+    "How many days did worker B work on project 'Project X' in September 2025?",
+    "How many days did worker C work on project 'Project Y' in September 2025?"
+])
+# Results: A=22, B=12, C=20
+
+# Batch 2: Get ALL costs in parallel (with full context)
+dispatch_tasks(subagent="query", prompts=[
+    "What was total cost for worker A on project 'Project X' in September 2025?",
+    "What was total cost for worker B on project 'Project X' in September 2025?",
+    "What was total cost for worker C on project 'Project Y' in September 2025?"
+])
+# Results: A=€14452, B=€7860, C=€13200
+
+# ❌ WRONG: Missing context (no project names, vague references)
+dispatch_tasks(subagent="query", prompts=[
+    "How many days did worker A work?",  # Missing project!
+    "What was total cost for worker A?"  # Also mixing operations!
+])
 ```
-"How many days did worker 'Elodie LEGUAY' work in September 2025?"
-→ Subagent retrieves: 22 days
-→ YOU compare: 22 (actual) vs 22 (expected) = ✓ match
-```
 
-## Example Flows
-
-### Example 1: Verification Workflow
-Task: "Verify workers from email: Elodie LEGUAY (22 days, €14452), Didier GEIG (12 days, €7860) for September 2025"
-
-1. Plan: write_todos
-2. Dispatch: dispatch_tasks(
-     subagent="verification",
-     prompts=[
-       "How many days did worker 'Elodie LEGUAY' work in September 2025?",
-       "What was the total cost for worker 'Elodie LEGUAY' in September 2025?",
-       "How many days did worker 'Didier GEIG' work in September 2025?",
-       "What was the total cost for worker 'Didier GEIG' in September 2025?"
-     ]
-   )
-3. Report: report_stage_results(
-     stage_name="Verification",
-     findings="Elodie: 22 days ✓ €14452 ✓, Didier: 12 days ✓ €7860 ✓. All match email data.",
-     next_actions="Proceed to validation or final report"
-   )
-4. Track: mark_step_complete("Verification complete")
-5. Synthesize: Compare retrieved values against email data, compile results
-
-### Example 2: Validation Workflow
-Task: "Validate worker timesheets from email for September 2025"
-1. Plan: write_todos
-2. Dispatch: dispatch_tasks(
-     subagent="validation",
-     prompts=[
-       "Validate timesheet for worker A in September 2025",
-       "Validate timesheet for worker B in September 2025"
-     ]
-   )
-3. Report: report_stage_results(
-     stage_name="Validation",
-     findings="Successfully validated 2 timesheets. Worker A and Worker B marked as approved.",
-     next_actions="Complete workflow"
-   )
-4. Track: mark_step_complete("Validation complete")
-5. Synthesize: Compile results and format final answer
-
-### Example 3: Mixed Workflow (Verification → Validation)
-Task: "Verify and validate workers from email: Worker A (22 days), Worker B (12 days), Worker C (22 days) for September 2025"
-
-Step 1 - Verification (retrieve actual data):
-dispatch_tasks(
-  subagent="verification",
-  prompts=[
-    "How many days did worker 'Worker A' work in September 2025?",
-    "How many days did worker 'Worker B' work in September 2025?",
-    "How many days did worker 'Worker C' work in September 2025?"
-  ]
+**Step 3: REPORT (Mandatory)**
+```python
+report_stage_results(
+    stage_name="Batch 1: Days Verification",
+    findings="Retrieved days for 3 workers: A=22j, B=12j, C=20j",
+    next_actions="Proceed to Batch 2: Cost verification"
 )
-# YOU compare retrieved values (22, 12, 20) against email values (22, 12, 22)
+```
+
+## Example: Full Parallel Workflow with Maximum Context
+
+```python
+# Task: "Verify and validate workers from email: Worker A on Project X (22d, €14452),
+#        Worker B on Project X (12d, €7860), Worker C on Project Y (20d, €13200) for Sep 2025"
+
+# BATCH 1: Get ALL days (with FULL context)
+dispatch_tasks(subagent="query", prompts=[
+    "How many days did worker A work on project 'Project X' in September 2025?",
+    "How many days did worker B work on project 'Project X' in September 2025?",
+    "How many days did worker C work on project 'Project Y' in September 2025?"
+])
+# Results: A=22, B=12, C=20
 
 report_stage_results(
-  stage_name="Verification",
-  findings="Processed 3 workers. 2 matched (Worker A: 22j ✓, Worker B: 12j ✓), 1 discrepancy (Worker C: expected 22j, found 20j)",
-  next_actions="Validate 2 workers with matching data. Report Worker C discrepancy."
+    stage_name="Batch 1: Days Verification",
+    findings="Worker A: 22j ✓, Worker B: 12j ✓, Worker C: 20j ✓ (all match email)",
+    next_actions="Batch 2: Cost verification"
 )
 
-Step 2 - Conditional Validation:
-dispatch_tasks(
-  subagent="validation",
-  prompts=[
-    "Validate timesheet for Worker A in September 2025",
-    "Validate timesheet for Worker B in September 2025"
-  ]
-)
-# Worker C NOT validated - discrepancy requires approval
+# BATCH 2: Get ALL costs (with full context from email)
+dispatch_tasks(subagent="query", prompts=[
+    "What was total cost for worker A on project 'Project X' in September 2025?",
+    "What was total cost for worker B on project 'Project X' in September 2025?",
+    "What was total cost for worker C on project 'Project Y' in September 2025?"
+])
+# Results: A=€14452, B=€7860, C=€13200
 
 report_stage_results(
-  stage_name="Validation",
-  findings="Successfully validated 2 timesheets (Worker A, Worker B). Worker C excluded due to discrepancy.",
-  next_actions="Report results and flag Worker C for manual review"
+    stage_name="Batch 2: Costs Verification",
+    findings="Worker A: €14452 ✓, Worker B: €7860 ✓, Worker C: €13200 ✓ (all match email)",
+    next_actions="Batch 3: Validate all 3 workers with matching data"
 )
 
-Step 3 - Final Report:
-- 2 workers validated successfully
-- 1 worker requires manual review (Worker C: 20 actual vs 22 expected)
+# BATCH 3: Validate ALL workers (with project context)
+dispatch_tasks(subagent="validation", prompts=[
+    "Validate timesheet for worker A on project 'Project X' in September 2025",
+    "Validate timesheet for worker B on project 'Project X' in September 2025",
+    "Validate timesheet for worker C on project 'Project Y' in September 2025"
+])
 
-Stay action-oriented. Use planning tools for planning. Use filesystem only for data. Break down. Execute. Consolidate."""
+report_stage_results(
+    stage_name="Batch 3: Validation Complete",
+    findings="Successfully validated 3/3 workers. No errors found.",
+    next_actions="All workers verified and validated. Workflow complete."
+)
+```
+
+## Parallel Batching Rules
+
+**DO**: Batch by operation type WITH FULL CONTEXT
+```python
+Batch 1: [Get days for A on Project X, B on Project X, C on Project Y]
+Batch 2: [Get costs for A on Project X, B on Project X, C on Project Y]
+Batch 3: [Validate A on Project X, B on Project X, C on Project Y]
+```
+
+**DON'T**: Process sequentially per entity
+```python
+# Wrong!
+Batch 1: [Get days for A, Get cost for A]
+Batch 2: [Get days for B, Get cost for B]
+```
+
+**DO**: Keep queries open-ended with full context
+```python
+# Batch 1 returned: Worker A worked 22 days on Project X
+# Batch 2: Ask for costs WITHOUT embedding expected values:
+"What was total cost for worker A on project 'Project X' in September 2025?"
+```
+
+**DON'T**: Mix different operations, omit context, or embed expected values
+```python
+# Wrong - Different ops!
+prompts=["Get days for A", "Get cost for B"]
+
+# Wrong - Missing project context!
+"What was total cost for worker A in Sep 2025?"
+
+# Wrong - Includes expected value!
+"What was total cost for worker A who worked 22 days on project 'Project X'?"
+```
+
+## Invoice Generation Rule
+
+Generate invoices ONLY when:
+1. User explicitly requests it, OR
+2. After validation completes AND validation agent confirms ALL project workers validated
+
+NEVER auto-generate invoices without checking project completion status first.
+
+Stay action-oriented. Batch by operation type. Execute in parallel."""
 
 
 @tool(parse_docstring=True)
@@ -279,9 +237,9 @@ async def dispatch_tasks(subagent: str, prompts: list[str]) -> list[tuple[str, s
             contains the original prompt and the subagent's response.
 
     Example:
-        >>> # Dispatch 3 verification tasks in parallel
+        >>> # Dispatch 3 query tasks in parallel
         >>> results = await dispatch_tasks(
-        ...     subagent="verification",
+        ...     subagent="query",
         ...     prompts=[
         ...         "How many days did Worker A work in September 2025?",
         ...         "How many days did Worker B work in September 2025?",
@@ -367,8 +325,8 @@ LAST First Name     days worked     total cost
 
 - Modernisation Ligne Production - Multi commande
 
-LEGUAY Elodie       22j             14452
-GEIG Didier         12j             7860
+LEGUAY Elodie       12j             7860
+GEIG Didier         22j             14432
 
 """,
     ]
@@ -405,7 +363,7 @@ GEIG Didier         12j             7860
     for i, query in enumerate(queries, 1):
         print(f"\n--- Query {i}: {query} ---")
         try:
-            async for message in agent.astream({"messages": [("user", query)]}):
+            async for message in agent.astream({"messages": [("user", query)]}, {"recursion_limit": 100}):
                 # # Print the agent's response
                 response = message.get("tools", {}) or message.get("model", {})
                 for msg in response.get("messages", []):

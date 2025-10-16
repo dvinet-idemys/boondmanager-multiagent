@@ -14,12 +14,15 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.agents.project_agent import project_agent_tool
 from src.agents.resource_agent import resource_agent_tool
-from src.agents.timesheet_agent import timesheet_agent_tool
+from src.agents.timesheet_agent import (
+    timesheet_agent_tool,
+)
 from src.format_utils import format_message
 from src.llm_config import get_llm
 from src.middleware.parse_fail_check import CheckParsingFailureMiddleware
 from src.tools.validation_tool import unvalidate_timesheet, validate_timesheet
 
+VALIDATION_AGENT_NODE = "validation_agent"
 VALIDATION_AGENT_PROMPT = """You are a specialized agent for validation operations in BoondManager CRM.
 
 Your primary responsibilities:
@@ -94,6 +97,14 @@ You:
 - For each timesheet, call validate_timesheet with appropriate validator
 - Consolidate results and report summary statistics
 
+### Example 4: Check if all project workers are validated (NEW)
+User: Check if all workers assigned to Project 6 have validated timesheets for September 2025
+You:
+- Call project_agent to get all workers assigned to Project 6
+- Call timesheet_agent to get ALL September 2025 timesheets for Project 6 (validated + pending)
+- Compare: Are all assigned workers' timesheets in "validated" state?
+- Return: {"project_id": 6, "month": "2025-09", "all_validated": true/false, "validated_count": X, "pending_count": Y, "total_workers": Z}
+
 ## Important Rules
 
 1. **Tool-First Approach**: ALWAYS use tools to fetch and validate data. NEVER fabricate information.
@@ -128,6 +139,28 @@ impact invoicing and billing workflows. Always verify prerequisites before valid
 Return complex data in a computer-readable format like JSON or XML.
 Return simple confirmations with minimal formatting.
 Remember your audience is another agent, not a human.
+
+## Final Response Format (MANDATORY)
+
+Your FINAL message must include TWO sections:
+
+**1. ANSWER:**
+[The direct answer to the query in machine-readable format - validation status, warnings, results]
+
+**2. REASONING:**
+[Brief recap of your thought process: which subagents/tools you called, why, and key findings]
+
+Example:
+```
+ANSWER:
+Timesheet 123 validated successfully (State: validated, Warnings: 2 - noSignedTimesheet, outsideContractDates on Project 15)
+
+REASONING:
+Called timesheet_agent to find worker's September 2025 timesheet → found timesheet ID 123.
+Called project_agent to identify validator → found manager ID 88.
+Called validate_timesheet(timesheet_id=123, expected_validator_id=88).
+Validation succeeded with 2 warnings requiring review before invoicing.
+```
 """
 
 
@@ -163,43 +196,34 @@ def create_validation_agent(
 
 @tool(parse_docstring=True)
 async def validation_agent_tool(prompt: str):
-    """Validation agent for timesheet approval workflows.
+    """Timesheet validation agent for approval workflows in BoondManager CRM.
 
-    ## Core Capabilities
+    Capabilities:
+    - Validate/unvalidate timesheets (prerequisite for invoicing)
+    - Coordinate with subagents (project, timesheet, resource) for context
+    - Parse validation warnings and identify critical issues
+    - Handle batch validation operations across projects or periods
 
-    ### Timesheet Validation
-    - Validate pending timesheets to mark them approved for billing
-    - Handle validation workflows that are prerequisites for invoicing
-    - Parse and report validation warnings (time discrepancies, date conflicts)
+    Data Access:
+    - Timesheet state (pending, validated, rejected)
+    - Validation warnings: noSignedTimesheet, outsideContractDates, noDeliveryOnProject
+    - Validator authorization status and resource IDs
+    - Project-timesheet relationships and worker assignments
 
-    ### Multi-Source Data Coordination
-    - Coordinate with project, timesheet, and resource agents to gather validation context
-    - Resolve timesheet IDs, validator IDs, and project relationships
-    - Synthesize information before attempting validation operations
+    Prompting Guidelines:
+    - Include timesheet ID or worker name + period (month YYYY-MM)
+    - Specify validator resource ID if known, otherwise agent resolves it
+    - For batch operations: specify project ID or time period scope
+    - Agent automatically checks prerequisites before validation
 
-    ### Validation Prerequisites Verification
-    - Verify timesheets exist and are in "pending" state before validation
-    - Identify correct validator (manager/supervisor) resource IDs
-    - Check for blocking issues (unsigned timesheets, missing deliveries)
-
-    ### Validation Response Analysis
-    - Check validation success status (data.attributes.state = "validated")
-    - Parse and categorize validation warnings by severity
-    - Report critical issues: noSignedTimesheet, outsideContractDates, noDeliveryOnProject
-    - Track which projects have validation warnings
-
-    ### Batch Validation Support
-    - Validate multiple timesheets for projects or periods
-    - Consolidate validation results and provide summary statistics
-    - Handle partial failures gracefully with detailed error reporting
-
-    ## Example Validation Queries
+    Examples:
     - "Validate timesheet 5 with validator 42"
-    - "Validate September 2025 timesheet for worker Elodie LEGUAY, validator is resource 42"
-    - "Validate all pending timesheets for project X"
+    - "Validate September 2025 timesheet for worker Alice MARTIN, validator is manager ID 15"
+    - "Validate all pending timesheets for project 6"
+    - "Check if all workers on Project 8 have validated timesheets for October 2025"
 
     Args:
-        prompt (str): A clear and concise prompt with full context for validation operations.
+        prompt (str): Validation request with timesheet identifier and optional validator.
     """
 
     async for message in create_validation_agent().astream({"messages": [("user", prompt)]}):
@@ -219,9 +243,9 @@ async def demo_validation_agent():
 
     # Example queries
     queries = [
-        # "Validate timesheet 6",  # must find validator
+        "Validate timesheet 6",  # must find validator
         "What warnings would I get if I validated timesheet 5 with validator 42?",
-        # "Unvalidate September 2025 timesheet for worker Jon LEVIN, validator is resource 2",  # must search timesheet id
+        "Unvalidate September 2025 timesheet for worker Jon LEVIN, validator is resource 2",  # must search timesheet id
     ]
 
     query_responses = []

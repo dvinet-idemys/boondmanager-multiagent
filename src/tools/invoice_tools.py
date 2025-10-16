@@ -246,3 +246,181 @@ async def get_invoice_information(invoice_id: int) -> Dict[str, Any]:
             "data": None,
             "message": f"Failed to fetch detailed information for invoice {invoice_id}.",
         }
+
+
+@tool(parse_docstring=True)
+async def generate_invoice(
+    month: str,
+    project_id: int,
+    delivery_id: Optional[int] = None,
+    resource_id: Optional[int] = None,
+    contact_id: Optional[int] = None,
+    company_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Generate invoices for a project in a specific month using PostProduction.
+
+    ⚠️ CRITICAL: This creates new invoices in BoondManager!
+    Use this tool to generate invoices after validating:
+    - Timesheet data is validated
+    - Business rules are satisfied
+    - All required entities exist
+
+    CRITICAL: Always check the generated invoices after calling this tool. Give
+    a recap of the generated invoices, don't just return "Success".
+
+    This endpoint triggers invoice generation and returns project data with updated
+    production and invoicing information.
+
+    Args:
+        month: Target month in format "YYYY-MM" (required, e.g., "2025-10")
+        project_id: Project unique identifier (required)
+        delivery_id: Filter by delivery unique identifier (optional)
+        resource_id: Filter by resource/consultant unique identifier (optional)
+        contact_id: Filter by contact unique identifier (optional)
+        company_id: Filter by company unique identifier (optional)
+
+    Returns:
+        {
+            "meta": {
+                "version": "4.0.0",
+                "isLogged": true,
+                "language": "en",
+                "totals": {"rows": 1}                      # Number of projects
+            },
+            "data": [{
+                "id": "8",                                 # Project ID (string)
+                "type": "apppostproductionproject",
+                "attributes": {
+                    "reference": "Project Alpha",          # Project name
+                    "turnoverProductionExcludingTax": 12000.00,  # Production amount
+                    "turnoverInvoicedExcludingTax": 12000.00,    # Invoiced amount
+                    "productionTerm": "2025-10",           # Billing month
+                    "numberOfOrders": 1,                   # Related orders count
+                    "canGenerateInvoices": true,           # Invoice generation allowed (false if not all necessary info present)
+                    "productionComments": "..."            # Generation notes
+                },
+                "relationships": {
+                    "company": {
+                        "data": {"id": "5", "type": "company"}  # Client company
+                    },
+                    "deliveries": {
+                        "data": [{                         # Related deliveries
+                            "id": "1",
+                            "type": "apppostproductiondelivery"
+                        }]
+                    }
+                }
+            }],
+            "included": [{                                 # Related entities
+                "id": "5",
+                "type": "company",
+                "attributes": {"name": "Client Corp"}
+            }]
+        }
+
+    Note: Amounts are in currency units (12000.00 = 12 000€).
+          The actual invoice IDs must be retrieved via search_invoices after generation.
+          This endpoint returns project post-production data, not invoice objects directly.
+
+    Example:
+        generate_invoice(month="2025-10", project_id=8)
+        → Generate invoices for project 8 in October 2025
+
+        generate_invoice(month="2025-10", project_id=8, resource_id=28)
+        → Generate invoices for specific consultant on project 8
+    """
+    # TODO: Uncomment when ready to test real invoice generation
+    # client = BoondManagerClient()
+    logger.info(
+        f"Generating invoice for project {project_id} in month {month} "
+        f"with filters: delivery={delivery_id}, resource={resource_id}, "
+        f"contact={contact_id}, company={company_id}"
+    )
+
+    try:
+        # TODO: Uncomment when ready to test real invoice generation
+        # result = await client.generate_invoice(
+        #     month=month,
+        #     project_id=project_id,
+        #     delivery_id=delivery_id,
+        #     resource_id=resource_id,
+        #     contact_id=contact_id,
+        #     company_id=company_id,
+        # )
+
+        # TEMPORARY: Return dummy response for development/testing
+        logger.warning("⚠️ Using dummy response - actual API call is commented out")
+        result = {
+            "meta": {
+                "version": "4.0.0",
+                "isLogged": True,
+                "language": "en",
+                "totals": {"rows": 1},
+                "isDummyResponse": True,
+            },
+            "data": [
+                {
+                    "id": str(project_id),
+                    "type": "apppostproductionproject",
+                    "attributes": {
+                        "reference": f"Project-{project_id}",
+                        "typeOf": 1,
+                        "mode": 1,
+                        "currency": 1,
+                        "exchangeRate": 1.0,
+                        "currencyAgency": 1,
+                        "exchangeRateAgency": 1.0,
+                        "turnoverProductionExcludingTax": 12000.00,
+                        "turnoverInvoicedExcludingTax": 12000.00,
+                        "productionTerm": month,
+                        "additionalTurnoverAndCosts": [],
+                        "numberOfOrders": 1,
+                        "workUnitRate": 1,
+                        "canGenerateInvoices": True,
+                        "productionComments": f"Invoice generated for {month}",
+                    },
+                    "relationships": {
+                        "contact": {
+                            "data": {"id": str(contact_id or 1), "type": "contact"}
+                            if contact_id
+                            else None
+                        },
+                        "company": {
+                            "data": {"id": str(company_id or 5), "type": "company"}
+                        },
+                        "deliveries": {
+                            "data": [
+                                {
+                                    "id": str(delivery_id or 1),
+                                    "type": "apppostproductiondelivery",
+                                }
+                            ]
+                            if delivery_id
+                            else []
+                        },
+                        "schedules": {"data": []},
+                        "purchases": {"data": []},
+                    },
+                }
+            ],
+            "included": [
+                {
+                    "id": str(company_id or 5),
+                    "type": "company",
+                    "attributes": {"name": "Client Company"},
+                }
+            ],
+        }
+
+        logger.info(
+            f"✅ (DUMMY) Generated invoice {result['data'][0]['attributes']['reference']}"
+        )
+        return result
+
+    except Exception as e:
+        logger.error(f"Error generating invoice: {e}")
+        return {
+            "error": str(e),
+            "data": [],
+            "message": f"Failed to generate invoice for project {project_id} in {month}.",
+        }

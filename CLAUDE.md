@@ -31,7 +31,7 @@ The system uses a two-phase approach:
 
 2. **Orchestrator Agent** ([src/agents/orchestrator_agent.py](src/agents/orchestrator_agent.py))
    - Executes the task list by dispatching to specialized subagents
-   - Routes tasks to: verification, validation, invoice, resource, timesheet, project agents
+   - Routes tasks to: query, validation, invoice, resource, timesheet, project agents
    - Manages execution flow and aggregates results
 
 ### Agent Structure
@@ -40,7 +40,7 @@ The system uses a two-phase approach:
 src/agents/
 ├── planner_agent.py        # Task planning and decomposition
 ├── orchestrator_agent.py   # Task execution and subagent routing
-├── verification_agent.py   # Data verification and reconciliation
+├── query_agent.py          # Data querying and retrieval (answers "what/how many" questions)
 ├── validation_agent.py     # Business rule validation
 ├── invoice_agent.py        # Invoice generation
 ├── resource_agent.py       # Resource/consultant management
@@ -137,12 +137,49 @@ mypy src/
 
 ## Working with This Codebase
 
+### Agent Prompt Engineering Guidelines
+
+**CRITICAL: ChatGPT OSS Compatibility**
+
+All agent system prompts must be optimized for ChatGPT-based models (via OpenAI API), not Claude. Key differences to consider:
+
+#### Prompt Structure for ChatGPT
+1. **Be Explicit and Directive**: ChatGPT responds better to clear, numbered instructions and explicit workflows
+2. **Use Repetition for Emphasis**: Important instructions should be repeated in multiple sections (capabilities, examples, rules)
+3. **Concrete Examples Over Abstract Rules**: Show step-by-step examples with exact tool call sequences
+4. **Visual Markers**: Use ⚠️, 🔴, ✅, etc. to highlight critical sections
+5. **Mandatory Workflow Enforcement**: For multi-step workflows (like generate → verify), state requirements as "MANDATORY", "CRITICAL", "NEVER skip"
+
+#### Common Pitfalls with ChatGPT OSS
+- **Stopping Early**: ChatGPT may complete a task prematurely without verification steps
+  - **Solution**: Add explicit "NEVER stop after X without doing Y" instructions
+- **Skipping Tool Calls**: May skip seemingly "optional" verification steps
+  - **Solution**: Make workflows MANDATORY with numbered steps (Step 1, Step 2, Step 3)
+- **Hallucinating Instead of Using Tools**: May fabricate responses instead of calling tools
+  - **Solution**: Add "ALWAYS use tools, NEVER fabricate" as rule #1
+
+#### Example: Invoice Generation Workflow
+The [invoice_agent.py](src/agents/invoice_agent.py) demonstrates proper ChatGPT prompt engineering:
+- Workflow stated 4 times: Core Capabilities, Query Strategy, Rules, Examples
+- Uses ⚠️ CRITICAL markers for emphasis
+- Explicit "NEVER finish after X without Y" instructions
+- Concrete examples with exact tool call sequences
+- Numbered steps (Step 1, Step 2, Step 3, Step 4)
+
+#### Testing Agent Prompts
+When modifying agent prompts:
+1. Test with actual ChatGPT model (not Claude)
+2. Verify multi-step workflows are followed completely
+3. Check that tools are called instead of hallucinated responses
+4. Ensure critical verification steps aren't skipped
+
 ### Adding New Agents
 
 1. Create agent file in `src/agents/`
 2. Define agent tools in `src/tools/`
 3. Register agent in orchestrator routing logic
 4. Add tests in `tests/unit/`
+5. **Design system prompt for ChatGPT** (see prompt engineering guidelines above)
 
 ### Modifying the Workflow
 

@@ -38,7 +38,7 @@ class WorkflowState(AgentState):
 async def run_planner(state: WorkflowState) -> dict[str, Any]:
     """Execute the planner agent to create task list from user query.
 
-    The planner uses a reflexion loop (planner � critic � refine) to generate
+    The planner uses a reflexion loop (planner -> critic -> refine) to generate
     a high-quality task list, then transforms it into structured todos.
 
     Args:
@@ -70,7 +70,7 @@ async def run_orchestrator(state: WorkflowState) -> dict[str, Any]:
     """Execute the orchestrator agent to fulfill the planned tasks.
 
     The orchestrator receives the task list and dispatches work to specialized
-    subagents (verification, validation, invoice) based on task requirements.
+    subagents (query, validation, invoice) based on task requirements.
 
     Args:
         state: Current workflow state with plan and todos
@@ -126,6 +126,12 @@ def create_workflow_graph() -> CompiledStateGraph[WorkflowState, Any, WorkflowSt
 
     return graph
 
+"""
+- Project: Modernisation Ligne Production - Multi commande
+
+LEGUAY Elodie       12j             7860
+GEIG Didier         22j             14432
+"""
 
 async def main():
     """Demo function to test the complete workflow."""
@@ -134,22 +140,15 @@ async def main():
     workflow = create_workflow_graph()
 
     # Example query
-    query = """Verify and validate these workers from Alexis's email:
+    query = """Verify, validate, generate invoices from Alexis's email:
 
 Hi Dimitri,
 
 Here is the breakdown for the projects for September 2025.
 
-- Project: Modernisation Ligne Production - Multi commande
-
-LEGUAY Elodie       22j             14452
-GEIG Didier         12j             7860
-
 - Project: Migration Cloud AWS - Tps partiel
 
 LEVIN Jon           7j              4606
-
-Total:                              26918
 
 Best,
 Alexis.
