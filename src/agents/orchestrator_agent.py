@@ -8,11 +8,13 @@ from typing import Any
 from langchain.agents import AgentState, create_agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import tool
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph.state import CompiledStateGraph
 from rich.console import Console
 from rich.padding import Padding
 from rich.panel import Panel
 
+from src.agents.emailing_agent import emailing_agent_tool
 from src.agents.invoice_agent import invoice_agent_tool
 from src.agents.query_agent import query_agent_tool
 from src.agents.validation_agent import validation_agent_tool
@@ -22,6 +24,7 @@ from src.middleware.parse_fail_check import CheckParsingFailureMiddleware
 from src.middleware.planning import PlanningMiddleware
 from src.middleware.revisor import ToolCallRevisorMiddleware
 from src.tools.common_tools import report_stage_results
+from src.utils import invoke_and_print_agent
 
 console = Console()
 
@@ -29,6 +32,7 @@ _subagents_mapping = {
     "query": query_agent_tool,
     "validation": validation_agent_tool,
     "invoice": invoice_agent_tool,
+    "emailing": emailing_agent_tool,
 }
 
 subagent_descriptions = [
@@ -40,10 +44,53 @@ subagent_descriptions = [
 ]
 
 
-ORCHESTRATOR_AGENT_PROMPT = f"""You are the Main Orchestrator - a task decomposition and parallel execution engine.
+ORCHESTRATOR_AGENT_PROMPT = f"""You are the Main Orchestrator - a task decomposition and parallel execution engine with expert prompt engineering capabilities.
+
+## ⚠️ SYSTEM CONSTRAINTS
+
+You cannot directly interact with the outside world. You cannot:
+- Send emails directly to workers, clients, or managers
+- Access external systems like email servers or databases
+- Perform operations outside this orchestration environment
+
+For any external interactions (emails, notifications, etc.), you MUST route through specialized subagents that interface with external systems. These subagents manage the actual external operations and handle things like draft creation for human review.
 
 ## Your Role
 Break complex tasks into batches of parallel subtasks and dispatch them to specialized subagents.
+
+## 🎯 CRITICAL: You are an Expert Prompt Engineer
+
+**Important**: All subagents you dispatch to are ChatGPT-based language models (OpenAI API). Your success depends on crafting effective prompts that follow ChatGPT prompting best practices.
+
+### ChatGPT Prompting Guidelines:
+
+1. **Be Explicit and Detailed**: ChatGPT models need clear, comprehensive instructions
+   - Include ALL relevant context in every prompt
+   - Don't assume the model will infer missing information
+   - Specify expected output format when needed
+
+2. **Provide Complete Information**: Don't rely on brevity
+   - Multi-line prompts with full details are BETTER than short vague ones
+   - Include all data, constraints, and requirements upfront
+   - For tasks (emails, reports), provide complete instructions
+
+3. **Use Structured Instructions**: When tasks are complex
+   - Break down what you need the subagent to do
+   - Specify tone, format, required elements
+   - Give examples when helpful
+
+4. **Context is King**: ChatGPT performs better with more context
+   - Full names, dates, project details, specific values
+   - Background information that aids understanding
+   - Relevant data from previous steps
+
+### Prompt Quality Examples:
+
+❌ **BAD** (too vague): "Email worker about issue"
+✅ **GOOD** (detailed): "Draft an email to Elodie LEGUAY (elodie.leguay@example.com) regarding her timesheet discrepancy for project 'Modernisation Ligne Production - Multi commande' in September 2025. Our records show she worked 15 days, but the client email reported 12 days. Ask her to review her timesheet and provide clarification. Use a professional but friendly tone. Include the project name and time period in the email for clarity."
+
+❌ **BAD** (missing context): "Check days for worker"
+✅ **GOOD** (complete context): "How many days did Elodie LEGUAY work on project 'Modernisation Ligne Production - Multi commande' in September 2025 according to BoondManager CRA records?"
 
 ## Available Subagents
 {chr(10).join(subagent_descriptions)}
@@ -64,7 +111,16 @@ Break complex tasks into batches of parallel subtasks and dispatch them to speci
 
 4. **MANDATORY after EVERY dispatch_tasks**: Call report_stage_results immediately
 
-5. **⚠️ MAXIMIZE CONTEXT IN PROMPTS** - Include ALL available details in every prompt:
+5. **🔴 DATA DEPENDENCIES** - Query data BEFORE using it:
+   - ❌ NEVER fabricate/assume data (email addresses, costs, dates)
+   - ✅ ALWAYS query unknown data first, THEN use results in next step
+   - Example: Query email → THEN draft email with actual address
+
+6. **PER-ENTITY TASKS** - "workers with X" means ONE task per worker:
+   - ✅ CORRECT: ["Email worker A about X", "Email worker B about Y"]
+   - ❌ WRONG: ["Email workers A and B about X and Y"]
+
+7. **⚠️ MAXIMIZE CONTEXT IN PROMPTS** - Include ALL available details in every prompt:
    ✅ ALWAYS INCLUDE when available:
    - Full worker names (First + Last)
    - Project names/references (CRITICAL - include exact project name from email/context)
@@ -76,143 +132,15 @@ Break complex tasks into batches of parallel subtasks and dispatch them to speci
 
    **Why this matters**: Subagents need full context to query correctly, especially project names for accurate data retrieval and validation
 
-## Workflow (3 Steps)
+## Workflow Pattern
 
-**Step 1: PLAN**
-```python
-write_todos([
-    "Batch 1: Get days for all N workers",
-    "Batch 2: Get costs for all N workers",
-    "Batch 3: Validate all M workers (where data matched)"
-])
-```
+1. **PLAN**: write_todos (identify ALL subtasks, check for data dependencies)
+2. **DISPATCH**: dispatch_tasks (parallel batches by operation type)
+3. **REPORT**: report_stage_results (MANDATORY after each dispatch)
 
-**Step 2: DISPATCH (Pure Parallel Batches with Full Context)**
-```python
-# ✅ CORRECT: Pure operation batching WITH FULL CONTEXT
-# Batch 1: Get ALL days in parallel (with project names!)
-dispatch_tasks(subagent="query", prompts=[
-    "How many days did worker A work on project 'Project X' in September 2025?",
-    "How many days did worker B work on project 'Project X' in September 2025?",
-    "How many days did worker C work on project 'Project Y' in September 2025?"
-])
-# Results: A=22, B=12, C=20
+Repeat steps 2-3 for each todo. Query dependencies FIRST, then use results.
 
-# Batch 2: Get ALL costs in parallel (with full context)
-dispatch_tasks(subagent="query", prompts=[
-    "What was total cost for worker A on project 'Project X' in September 2025?",
-    "What was total cost for worker B on project 'Project X' in September 2025?",
-    "What was total cost for worker C on project 'Project Y' in September 2025?"
-])
-# Results: A=€14452, B=€7860, C=€13200
-
-# ❌ WRONG: Missing context (no project names, vague references)
-dispatch_tasks(subagent="query", prompts=[
-    "How many days did worker A work?",  # Missing project!
-    "What was total cost for worker A?"  # Also mixing operations!
-])
-```
-
-**Step 3: REPORT (Mandatory)**
-```python
-report_stage_results(
-    stage_name="Batch 1: Days Verification",
-    findings="Retrieved days for 3 workers: A=22j, B=12j, C=20j",
-    next_actions="Proceed to Batch 2: Cost verification"
-)
-```
-
-## Example: Full Parallel Workflow with Maximum Context
-
-```python
-# Task: "Verify and validate workers from email: Worker A on Project X (22d, €14452),
-#        Worker B on Project X (12d, €7860), Worker C on Project Y (20d, €13200) for Sep 2025"
-
-# BATCH 1: Get ALL days (with FULL context)
-dispatch_tasks(subagent="query", prompts=[
-    "How many days did worker A work on project 'Project X' in September 2025?",
-    "How many days did worker B work on project 'Project X' in September 2025?",
-    "How many days did worker C work on project 'Project Y' in September 2025?"
-])
-# Results: A=22, B=12, C=20
-
-report_stage_results(
-    stage_name="Batch 1: Days Verification",
-    findings="Worker A: 22j ✓, Worker B: 12j ✓, Worker C: 20j ✓ (all match email)",
-    next_actions="Batch 2: Cost verification"
-)
-
-# BATCH 2: Get ALL costs (with full context from email)
-dispatch_tasks(subagent="query", prompts=[
-    "What was total cost for worker A on project 'Project X' in September 2025?",
-    "What was total cost for worker B on project 'Project X' in September 2025?",
-    "What was total cost for worker C on project 'Project Y' in September 2025?"
-])
-# Results: A=€14452, B=€7860, C=€13200
-
-report_stage_results(
-    stage_name="Batch 2: Costs Verification",
-    findings="Worker A: €14452 ✓, Worker B: €7860 ✓, Worker C: €13200 ✓ (all match email)",
-    next_actions="Batch 3: Validate all 3 workers with matching data"
-)
-
-# BATCH 3: Validate ALL workers (with project context)
-dispatch_tasks(subagent="validation", prompts=[
-    "Validate timesheet for worker A on project 'Project X' in September 2025",
-    "Validate timesheet for worker B on project 'Project X' in September 2025",
-    "Validate timesheet for worker C on project 'Project Y' in September 2025"
-])
-
-report_stage_results(
-    stage_name="Batch 3: Validation Complete",
-    findings="Successfully validated 3/3 workers. No errors found.",
-    next_actions="All workers verified and validated. Workflow complete."
-)
-```
-
-## Parallel Batching Rules
-
-**DO**: Batch by operation type WITH FULL CONTEXT
-```python
-Batch 1: [Get days for A on Project X, B on Project X, C on Project Y]
-Batch 2: [Get costs for A on Project X, B on Project X, C on Project Y]
-Batch 3: [Validate A on Project X, B on Project X, C on Project Y]
-```
-
-**DON'T**: Process sequentially per entity
-```python
-# Wrong!
-Batch 1: [Get days for A, Get cost for A]
-Batch 2: [Get days for B, Get cost for B]
-```
-
-**DO**: Keep queries open-ended with full context
-```python
-# Batch 1 returned: Worker A worked 22 days on Project X
-# Batch 2: Ask for costs WITHOUT embedding expected values:
-"What was total cost for worker A on project 'Project X' in September 2025?"
-```
-
-**DON'T**: Mix different operations, omit context, or embed expected values
-```python
-# Wrong - Different ops!
-prompts=["Get days for A", "Get cost for B"]
-
-# Wrong - Missing project context!
-"What was total cost for worker A in Sep 2025?"
-
-# Wrong - Includes expected value!
-"What was total cost for worker A who worked 22 days on project 'Project X'?"
-```
-
-## Invoice Generation Rule
-
-Generate invoices ONLY when:
-1. User explicitly requests it, OR
-2. After validation completes AND validation agent confirms ALL project workers validated
-
-NEVER auto-generate invoices without checking project completion status first.
-
+Generate invoices ONLY when explicitly requested.
 Stay action-oriented. Batch by operation type. Execute in parallel."""
 
 
@@ -271,11 +199,17 @@ async def dispatch_tasks(subagent: str, prompts: list[str]) -> list[tuple[str, s
         ret = await subagent_tool.ainvoke({"prompt": prompt})
         results.append((prompt, ret))
 
-    return results
+    return (
+        "\n".join(f"{p}: {r}" for p, r in results)
+        + "\n\n"
+        + "Call report_stage_results to report your findings."
+    )
+    # return results
 
 
 def create_orchestrator_agent(
     model: BaseChatModel | None = None,
+    checkpointer=None,
 ) -> CompiledStateGraph[AgentState, Any, AgentState, AgentState]:
     """Create an orchestrator agent with all available subagents.
 
@@ -297,24 +231,13 @@ def create_orchestrator_agent(
             CheckParsingFailureMiddleware(),
         ],
         system_prompt=ORCHESTRATOR_AGENT_PROMPT,
+        checkpointer=checkpointer,
     )
 
     return agent
 
 
-async def demo_orchestrator_agent():
-    """Demo function to test the project agent with example queries."""
-    print("=== BoondManager Orchestrator Agent Demo ===\n")
-
-    agent = create_orchestrator_agent()
-
-    # Example queries
-    queries = [
-        """
-Verify days worked and totals for each worker in this email.
-Validate timesheets for workers where days worked and total is correct.
-Give a VERY SIMPLE report of your actions taken and their outcomes.
-
+EMAIL = """
 Hi Dimitri,
 
 Here is the breakdown for the projects at Roche, Veolia and SAUR for September 2025.
@@ -327,54 +250,76 @@ LAST First Name     days worked     total cost
 
 LEGUAY Elodie       12j             7860
 GEIG Didier         22j             14432
+"""
 
+
+async def demo_orchestrator_agent():
+    """Demo function to test the project agent with example queries."""
+    print("=== BoondManager Orchestrator Agent Demo ===\n")
+
+    agent = create_orchestrator_agent(checkpointer=InMemorySaver())
+
+    # Example queries
+    queries = [
+        #         f"""
+        # Verify days worked and totals for each worker in this email.
+        # {EMAIL}
+        # """,
+        #         f"""
+        # Validate timesheets when days worked and totals match.
+        # Query results:
+        # LEGUAY Elodie       12j             7860
+        # GEIG Didier         22j             14432
+        # Original Email:
+        # {EMAIL}
+        # """,
+        #         f"""
+        # Validate timesheets when days worked and totals match.
+        # Query results:
+        # LEGUAY Elodie       15j             7860
+        # GEIG Didier         22j             14432
+        # Original Email:
+        # {EMAIL}
+        # """,
+        # f"""
+        # Generate invoices for projects in this email. Check that each worker's timesheet
+        # were validated. Only generate invoices for projects where all timesheets were
+        # validated.
+        # Original Email:
+        # {EMAIL}
+        # """,
+        f"""
+Draft and send end an email to the workers with mismatches to ask for clarification. Ensure
+correct email address.
+
+# Query results:
+# LEGUAY Elodie       15j             7860
+# GEIG Didier         22j             14432
+
+Original Email:
+{EMAIL}
 """,
-    ]
-
-    [
-        """
-
-    - Migration Cloud AWS - Tps partiel
-
-    LEVIN Jon           7j              4606
-
-
-    - Application Mobile Interne - Basic
-
-    RENEE ZHAO Ruike    21j             15400
-    LEVIN Jon           15j             11370
-    DENECE Philippe     22j             14454
-    FINN Chelsea        17j             11917
-    LEVY Daniel         22j             15400
-
-
-    Total:                              95459
-
-    Feel free to reach out.
-
-    Best,
-
-    Alexis.
-    """,
     ]
 
     query_responses = []
 
     for i, query in enumerate(queries, 1):
         print(f"\n--- Query {i}: {query} ---")
-        try:
-            async for message in agent.astream({"messages": [("user", query)]}, {"recursion_limit": 100}):
-                # # Print the agent's response
-                response = message.get("tools", {}) or message.get("model", {})
-                for msg in response.get("messages", []):
-                    format_message(msg)
-                    # if hasattr(msg, "content") and msg.content:
-                    #     print(f"Agent: {msg.content}")
-        except Exception as e:
-            print(f"Error: {e}")
-            print(message)
-
-        query_responses.append((query, msg.content))
+        await invoke_and_print_agent(agent, query)
+        print("hi, i fixed my timsheet. can you recheck please ?")
+        await invoke_and_print_agent(agent, "hi, i fixed my timsheet. can you recheck please ?")
+        # try:
+            # async for message in agent.astream(
+            #     {"messages": [("user", query)]}, {"recursion_limit": 100}
+            # ):
+            #     # # Print the agent's response
+            #     response = message.get("tools", {}) or message.get("model", {})
+            #     for msg in response.get("messages", []):
+            #         format_message(msg)
+            #         # if hasattr(msg, "content") and msg.content:
+            #         #     print(f"Agent: {msg.content}")
+        # except Exception as e:
+        #     print(f"Error: {e}")
 
         print("-" * 50)
 

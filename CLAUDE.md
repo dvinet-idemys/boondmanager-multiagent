@@ -98,41 +98,43 @@ OPENAI_API_KEY=your_openai_key
 
 ## Common Commands
 
+**IMPORTANT: Always use `uv` for all Python operations and project management in this project.**
+
 ### Running the Application
 
 ```bash
 # Run the main workflow
-python src/graph.py
+uv run python src/graph.py
 
 # Run with asyncio
-python -m asyncio src.graph
+uv run python -m asyncio src.graph
 ```
 
 ### Testing
 
 ```bash
 # Run all tests
-pytest
+uv run pytest
 
 # Run with coverage
-pytest --cov=src --cov-report=html --cov-report=term
+uv run pytest --cov=src --cov-report=html --cov-report=term
 
 # Run specific test suites
-pytest tests/unit/
-pytest tests/integration/
+uv run pytest tests/unit/
+uv run pytest tests/integration/
 ```
 
 ### Code Quality
 
 ```bash
 # Format code
-black src/ tests/
+uv run black src/ tests/
 
 # Lint code
-ruff check src/ tests/
+uv run ruff check src/ tests/
 
 # Type checking
-mypy src/
+uv run mypy src/
 ```
 
 ## Working with This Codebase

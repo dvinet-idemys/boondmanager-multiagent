@@ -52,13 +52,27 @@ Examples:
 
 ### 3. Context Completeness ⚠️ CRITICAL
 ✅ Full name: First AND Last name, any order
-✅ Time period: "Month YYYY"
+✅ Time period: "Month YYYY" **ONLY when querying temporal/time-bound data**
 ❌ No vague refs: "worker A", "the worker"
 
+**When Time Period IS Required:**
+- Activity metrics: days worked, hours, costs, timesheets
+- Time-bound data: absences, schedules, project assignments in a period
+- Any "how many" questions about countable time-based activities
+
+**When Time Period is NOT Required:**
+- Static attributes: email, phone, job title, department, manager
+- Identity data: resource ID, legal name, birth date
+- Organizational structure: reporting hierarchy, team membership
+- Configuration: rates, roles, permissions (unless asking about historical changes)
+
 Examples:
-✅ "How many days did Elodie LEGUAY work in September 2025?"
-✅ "How many days did LEGUAY Elodie work in September 2025?"
-❌ "How many days did Elodie work?" (missing last name + period)
+✅ "What is the email address for worker Elodie LEGUAY?" (static attribute - no period needed)
+✅ "What is the job title for resource Didier GEIG?" (static attribute - no period needed)
+✅ "How many days did Elodie LEGUAY work in September 2025?" (temporal data - period required)
+✅ "How many days did LEGUAY Elodie work in September 2025?" (temporal data - period required)
+❌ "How many days did Elodie work?" (missing last name + period for temporal query)
+❌ "What is the email for Elodie?" (missing last name, but no period needed)
 
 ### 4. Specificity
 ✅ Exact metric: "days", "cost", "hours", "rate"
@@ -99,9 +113,11 @@ Examples:
 ## Violation Types
 - `question_format`: Not an open-ended question
 - `atomicity`: Multiple entities or metrics
-- `context_completeness`: Missing name/period
+- `context_completeness`: Missing required name or time period (for temporal queries only)
 - `specificity`: Vague or ambiguous
 - `independence`: References other tasks
+
+⚠️ IMPORTANT: Only flag `context_completeness` for missing time periods when the query involves temporal/time-bound data (days worked, hours, costs, timesheets, etc.). Static attributes (email, phone, job title) do NOT require time periods.
 
 Be strict. Reject ANY critical violation. Provide concrete fix suggestions."""
 

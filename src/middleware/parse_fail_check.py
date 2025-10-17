@@ -5,7 +5,7 @@ from langchain.agents.middleware import (
     ModelRequest,
 )
 from langchain.agents.middleware.types import ModelResponse
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 
 class CheckParsingFailureMiddleware(AgentMiddleware):
@@ -15,6 +15,12 @@ class CheckParsingFailureMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest], ModelResponse],
     ):
         for attempt in range(3):
+            if attempt == 1:
+                request.state["messages"].append(
+                    HumanMessage(
+                        "Your last message was completely empty. Please generate a valid message."
+                    )
+                )
             ret = handler(request)
 
             assistant_message: AIMessage
@@ -34,6 +40,12 @@ class CheckParsingFailureMiddleware(AgentMiddleware):
         handler,
     ):
         for attempt in range(3):
+            if attempt == 1:
+                request.state["messages"].append(
+                    HumanMessage(
+                        "Your last message was completely empty. Please generate a valid message."
+                    )
+                )
             ret = await handler(request)
 
             assistant_message: AIMessage
