@@ -18,6 +18,7 @@ dependencies = [
     "langgraph>=1.0.0a4",
     "deepagents>=0.0.12rc1",
     "numexpr>=2.14.1",
+    "langchain-ollama>=1.0.0",
 ]
 
 [project.optional-dependencies]

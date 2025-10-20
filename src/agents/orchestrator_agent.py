@@ -18,7 +18,6 @@ from src.agents.emailing_agent import emailing_agent_tool
 from src.agents.invoice_agent import invoice_agent_tool
 from src.agents.query_agent import query_agent_tool
 from src.agents.validation_agent import validation_agent_tool
-from src.format_utils import format_message
 from src.llm_config import get_llm
 from src.middleware.parse_fail_check import CheckParsingFailureMiddleware
 from src.middleware.planning import PlanningMiddleware
