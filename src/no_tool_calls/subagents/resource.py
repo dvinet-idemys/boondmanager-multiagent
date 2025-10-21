@@ -140,4 +140,5 @@ resource_subagent = Subagent(
     node=AssistantNode(get_llm(), RESOURCE_AGENT_PROMPT, tools, truncate_msgs=True),
     tools=tools,
     to_subagent_fn=ToResourceSubagent,
+    truncate_state=True,
 )

@@ -385,9 +385,7 @@ async def generate_invoice(
                             if contact_id
                             else None
                         },
-                        "company": {
-                            "data": {"id": str(company_id or 5), "type": "company"}
-                        },
+                        "company": {"data": {"id": str(company_id or 5), "type": "company"}},
                         "deliveries": {
                             "data": [
                                 {
@@ -412,9 +410,7 @@ async def generate_invoice(
             ],
         }
 
-        logger.info(
-            f"✅ (DUMMY) Generated invoice {result['data'][0]['attributes']['reference']}"
-        )
+        logger.info(f"✅ (DUMMY) Generated invoice {result['data'][0]['attributes']['reference']}")
         return result
 
     except Exception as e:

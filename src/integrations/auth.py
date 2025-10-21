@@ -35,7 +35,7 @@ def new_token(
         client_token = config.boond_client_token
 
     if client_key is None:
-        client_key =  config.boond_client_key
+        client_key = config.boond_client_key
 
     payload = {
         "userToken": user_token,

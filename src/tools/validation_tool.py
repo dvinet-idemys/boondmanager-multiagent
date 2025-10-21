@@ -139,7 +139,7 @@ async def validate_timesheet(timesheet_id: int, expected_validator_id: int) -> D
             "error": e.response.status_code,
             "message": f"Failed to validate timesheet {timesheet_id}.",
             "request": e.request,
-            "api_response": e.response.text
+            "api_response": e.response.text,
         }
 
 

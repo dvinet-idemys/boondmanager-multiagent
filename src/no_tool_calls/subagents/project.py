@@ -1,17 +1,8 @@
 """Standalone project agent for fetching and parsing BoondManager project data."""
 
-import asyncio
-from typing import Any
-
-from langchain.agents import AgentState, create_agent
-from langchain_core.language_models import BaseChatModel
-from langchain_core.tools import tool
-from langgraph.graph.state import CompiledStateGraph
-from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from src.llm_config import get_llm
-from src.middleware.parse_fail_check import CheckParsingFailureMiddleware
 from src.no_tool_calls.assistant import AssistantNode, Subagent
 from src.no_tool_calls.routing import CompleteOrEscalate
 from src.tools.project_tools import (
@@ -172,4 +163,5 @@ project_subagent = Subagent(
     node=AssistantNode(get_llm(), PROJECT_AGENT_PROMPT, tools, truncate_msgs=True),
     tools=tools,
     to_subagent_fn=ToProjectSubagent,
+    truncate_state=True,
 )

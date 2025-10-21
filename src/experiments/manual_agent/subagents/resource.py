@@ -1,15 +1,9 @@
-"""Standalone resource agent for fetching and parsing BoondManager resource data."""
+"""Standalone project agent for fetching and parsing BoondManager project data."""
 
-import asyncio
-from typing import Any
+from pydantic import BaseModel, Field
 
-from langchain.agents import AgentState, create_agent
-from langchain_core.language_models import BaseChatModel
-from langchain_core.tools import tool
-from langgraph.graph.state import CompiledStateGraph
-
+from src.experiments.manual_agent.agent import ReactAgent
 from src.llm_config import get_llm
-from src.middleware.parse_fail_check import CheckParsingFailureMiddleware
 from src.tools.resource_tools import (
     get_resource_by_id,
     search_resources,
@@ -114,52 +108,16 @@ Found 1 match with ID 42. Extracted name, ID, email, and active status from resp
 ```
 """
 
-RESOURCE_AGENT_NODE = "resource_agent"
+
+tools = [
+    search_resources,
+    get_resource_by_id,
+]
 
 
-async def resource_agent_node(state: AgentState):
-    ret = await create_resource_agent().ainvoke({"messages": state["messages"][-1]})
+class ToResourceSubagent(BaseModel):
+    """Transfers work to the Resource Agent responsible for fetching internal data.
 
-    return {"messages": [ret.get("messages", [""])[-1].content]}
-
-
-def create_resource_agent(
-    model: BaseChatModel | None = None,
-) -> CompiledStateGraph[AgentState, Any, AgentState, AgentState]:
-    """Create a standalone resource agent with all resource-related tools.
-
-    Args:
-        model: LLM model to use. If None, uses default from llm_config.
-
-    Returns:
-        Configured LangGraph agent ready to handle resource queries.
-
-    Example:
-        >>> agent = create_resource_agent()
-        >>> async for message in agent.astream(
-        ...     {"messages": [("user", "Find resource elodie leguay")]}
-        ... ):
-        ...     print(message)
-    """
-    if model is None:
-        model = get_llm()
-
-    agent = create_agent(
-        model,
-        tools=[
-            search_resources,
-            get_resource_by_id,
-        ],
-        middleware=[CheckParsingFailureMiddleware()],
-        system_prompt=RESOURCE_AGENT_PROMPT,
-    )
-
-    return agent
-
-
-@tool(parse_docstring=True)
-async def resource_agent_tool(prompt: str):
-    """
     ## Core Capabilities
 
     ### Resource Discovery
@@ -168,45 +126,14 @@ async def resource_agent_tool(prompt: str):
 
     ### Resource Details
     - Get detailed information about specific resources
-    - Includes contact info, employment status, and assignments
+    - Includes contact info, employment status, and assignments"""
 
-    Args:
-        prompt (str): A clear and concise prompt to send to the agent as input.
-    """
-
-    ret = await create_resource_agent().ainvoke({"messages": prompt})
-
-    return ret.get("messages", [""])[-1].content
+    request: str = Field(description="Open-ended question the Resource Agent must respond to.")
 
 
-async def demo_resource_agent():
-    """Demo function to test the resource agent with example queries."""
-    print("=== BoondManager Resource Agent Demo ===\n")
-
-    agent = create_resource_agent()
-
-    # Example queries
-    queries = [
-        "Find resource elodie leguay",
-        "Get details for resource 28",
-        "List all resources",
-    ]
-
-    for i, query in enumerate(queries, 1):
-        print(f"\n--- Query {i}: {query} ---")
-        try:
-            async for message in agent.astream({"messages": [("user", query)]}):
-                # Print the agent's response
-                response = message.get("tools", {}) or message.get("model", {})
-                for msg in response.get("messages", []):
-                    if hasattr(msg, "content") and msg.content:
-                        print(f"Agent: {msg.content}")
-        except Exception as e:
-            print(f"Error: {e}")
-            print(message)
-        print("-" * 50)
-
-
-if __name__ == "__main__":
-    # Run the demo
-    asyncio.run(demo_resource_agent())
+resource_agent = ReactAgent(
+    model=get_llm(),
+    system_prompt=RESOURCE_AGENT_PROMPT,
+    tools=tools,
+    name="Resource Agent",
+)

@@ -41,6 +41,27 @@ def pop_dialog_state(state: State) -> dict:
     to specific sub-graphs.
     """
     messages = []
+    subagent_messages = state.get("subagent_messages")
+
+    # Handle truncated subagent exit
+    if subagent_messages is not None:
+        # Extract the last message from subagent (the result)
+        if subagent_messages:
+            last_msg = subagent_messages[-1]
+            # Add subagent result to main message history
+            messages.append(
+                ToolMessage(
+                    content=f"Subagent completed. Result: {last_msg.content if hasattr(last_msg, 'content') else str(last_msg)}",
+                    tool_call_id=state["messages"][-1].tool_call_id,
+                )
+            )
+        return {
+            "dialog_state": "pop",
+            "messages": messages,
+            "subagent_messages": "clear",  # Clear isolated history
+        }
+
+    # Handle normal subagent exit (full context mode)
     if state["messages"][-1].tool_calls:
         # Note: Doesn't currently handle the edge case where the llm performs parallel tool calls
         messages.append(
@@ -49,6 +70,7 @@ def pop_dialog_state(state: State) -> dict:
                 tool_call_id=state["messages"][-1].tool_calls[0]["id"],
             )
         )
+
     return {
         "dialog_state": "pop",
         "messages": messages,
@@ -83,23 +105,46 @@ def create_router_fn(assistant_name: str, subagent_names: list[str]):
     return route_to_workflow
 
 
-def create_entry_node(assistant_name: str, new_dialog_state: str) -> Callable:
+def create_entry_node(
+    assistant_name: str, new_dialog_state: str, truncate_state: bool = False
+) -> Callable:
     def entry_node(state: State) -> dict:
         tool_call_id = state["messages"][-1].tool_calls[0]["id"]
+        tool_call = state["messages"][-1].tool_calls[0]
 
-        return {
-            "messages": [
+        if truncate_state:
+            # Extract the request from the tool call arguments
+            request = tool_call.get("args", {}).get("request", "")
+
+            # Create isolated message history with just the task
+            isolated_messages = [
                 ToolMessage(
-                    content=f"The assistant is now the {assistant_name}. Reflect on the above conversation between the host assistant and the user."
-                    f" The user's intent is unsatisfied. Use the provided tools to assist the user. Remember, you are {assistant_name},"
-                    " and the booking, update, other other action is not complete until after you have successfully invoked the appropriate tool."
-                    " If the user changes their mind or needs help for other tasks, call the CompleteOrEscalate function to let the primary host assistant take control."
-                    " Do not mention who you are - just act as the proxy for the assistant.",
+                    content=f"You are now the {assistant_name}. Your task:\n\n{request}\n\n"
+                    f"Use the provided tools to complete this task. "
+                    f"When finished, call CompleteOrEscalate to return control.",
                     tool_call_id=tool_call_id,
                 )
-            ],
-            "dialog_state": new_dialog_state,
-        }
+            ]
+
+            return {
+                "subagent_messages": isolated_messages,
+                "dialog_state": new_dialog_state,
+            }
+        else:
+            # Default: full context - add transition message to main messages
+            return {
+                "messages": [
+                    ToolMessage(
+                        content=f"The assistant is now the {assistant_name}. Reflect on the above conversation between the host assistant and the user."
+                        f" The user's intent is unsatisfied. Use the provided tools to assist the user. Remember, you are {assistant_name},"
+                        " and the booking, update, other other action is not complete until after you have successfully invoked the appropriate tool."
+                        " If the user changes their mind or needs help for other tasks, call the CompleteOrEscalate function to let the primary host assistant take control."
+                        " Do not mention who you are - just act as the proxy for the assistant.",
+                        tool_call_id=tool_call_id,
+                    )
+                ],
+                "dialog_state": new_dialog_state,
+            }
 
     return entry_node
 

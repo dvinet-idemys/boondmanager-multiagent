@@ -30,7 +30,7 @@ def test_parse_simple_email(simple_email_content):
         "has_discrepancies": False,
         "validation_passed": False,
         "errors": [],
-        "warnings": []
+        "warnings": [],
     }
 
     result = parse_email(state)
@@ -44,13 +44,17 @@ def test_parse_simple_email(simple_email_content):
     assert len(result["consultant_activities"]) == 2
 
     # Check first consultant
-    elodie = next((c for c in result["consultant_activities"] if "Elodie" in c["consultant_name"]), None)
+    elodie = next(
+        (c for c in result["consultant_activities"] if "Elodie" in c["consultant_name"]), None
+    )
     assert elodie is not None
     assert elodie["days_declared"] == 22
     assert elodie["project_name"] == "Modernisation Ligne Production - Multi commande"
 
     # Check second consultant
-    didier = next((c for c in result["consultant_activities"] if "Didier" in c["consultant_name"]), None)
+    didier = next(
+        (c for c in result["consultant_activities"] if "Didier" in c["consultant_name"]), None
+    )
     assert didier is not None
     assert didier["days_declared"] == 12
     assert didier["project_name"] == "Modernisation Ligne Production - Multi commande"
@@ -71,7 +75,7 @@ def test_parse_multi_project_email(multi_project_email_content):
         "has_discrepancies": False,
         "validation_passed": False,
         "errors": [],
-        "warnings": []
+        "warnings": [],
     }
 
     result = parse_email(state)
@@ -85,7 +89,11 @@ def test_parse_multi_project_email(multi_project_email_content):
     assert len(result["consultant_activities"]) == 8
 
     # Check Jon LEVIN appears in two different projects
-    jon_activities = [c for c in result["consultant_activities"] if "Jon" in c["consultant_name"] and "LEVIN" in c["consultant_name"]]
+    jon_activities = [
+        c
+        for c in result["consultant_activities"]
+        if "Jon" in c["consultant_name"] and "LEVIN" in c["consultant_name"]
+    ]
     assert len(jon_activities) == 2
 
     # Verify projects are different for Jon
@@ -114,7 +122,7 @@ def test_parse_email_with_no_content():
         "has_discrepancies": False,
         "validation_passed": False,
         "errors": [],
-        "warnings": []
+        "warnings": [],
     }
 
     result = parse_email(state)
@@ -136,7 +144,7 @@ def test_consultant_activity_structure():
         "has_discrepancies": False,
         "validation_passed": False,
         "errors": [],
-        "warnings": []
+        "warnings": [],
     }
 
     result = parse_email(state)

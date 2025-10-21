@@ -301,10 +301,7 @@ class BoondManagerClient:
             >>>
             >>> # Generate invoice with additional filters
             >>> result = await client.generate_invoice(
-            ...     month="2025-10",
-            ...     project_id=123,
-            ...     company_id=456,
-            ...     contact_id=789
+            ...     month="2025-10", project_id=123, company_id=456, contact_id=789
             ... )
         """
         # Build keywords parameter from all ID filters

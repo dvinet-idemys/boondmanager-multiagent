@@ -159,15 +159,10 @@ class ToolCallRevisorMiddleware(AgentMiddleware):
             self.revisor_prompt = revisor_prompt
 
     def before_model(self, state: RevisorState, runtime) -> dict[str, Any] | None:
-        if (revs :=state.get("revisions")) is None:
+        if (revs := state.get("revisions")) is None:
             return None
 
-        return {
-            "messages": [f"Tool call rejected:\n{revs}"],
-            "revisions": None
-        }
-
-
+        return {"messages": [f"Tool call rejected:\n{revs}"], "revisions": None}
 
     @hook_config(can_jump_to=["model"])
     def after_model(self, state: RevisorState, runtime: Runtime):
@@ -178,7 +173,6 @@ class ToolCallRevisorMiddleware(AgentMiddleware):
         tool_calls_simple = []
 
         for call in state["messages"][-1].tool_calls:
-
             tool_calls_simple.append(f"{call['name']}: {call['args']}")
             if call["name"] != self.revised_tool_call:
                 continue
@@ -212,8 +206,4 @@ class ToolCallRevisorMiddleware(AgentMiddleware):
             f"tried to call tool(s): \n{chr(10).join(tool_calls_simple)}"
         )
 
-        return {
-            "messages": state["messages"],
-            "revisions": revisions,
-            "jump_to": "model"
-        }
+        return {"messages": state["messages"], "revisions": revisions, "jump_to": "model"}

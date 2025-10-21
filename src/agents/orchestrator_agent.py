@@ -170,8 +170,8 @@ async def dispatch_tasks(subagent: str, prompts: list[str]) -> list[tuple[str, s
         ...     prompts=[
         ...         "How many days did Worker A work in September 2025?",
         ...         "How many days did Worker B work in September 2025?",
-        ...         "How many days did Worker C work in September 2025?"
-        ...     ]
+        ...         "How many days did Worker C work in September 2025?",
+        ...     ],
         ... )
     """
     if subagent not in _subagents_mapping:
@@ -308,15 +308,15 @@ Original Email:
         print("hi, i fixed my timsheet. can you recheck please ?")
         await invoke_and_print_agent(agent, "hi, i fixed my timsheet. can you recheck please ?")
         # try:
-            # async for message in agent.astream(
-            #     {"messages": [("user", query)]}, {"recursion_limit": 100}
-            # ):
-            #     # # Print the agent's response
-            #     response = message.get("tools", {}) or message.get("model", {})
-            #     for msg in response.get("messages", []):
-            #         format_message(msg)
-            #         # if hasattr(msg, "content") and msg.content:
-            #         #     print(f"Agent: {msg.content}")
+        # async for message in agent.astream(
+        #     {"messages": [("user", query)]}, {"recursion_limit": 100}
+        # ):
+        #     # # Print the agent's response
+        #     response = message.get("tools", {}) or message.get("model", {})
+        #     for msg in response.get("messages", []):
+        #         format_message(msg)
+        #         # if hasattr(msg, "content") and msg.content:
+        #         #     print(f"Agent: {msg.content}")
         # except Exception as e:
         #     print(f"Error: {e}")
 

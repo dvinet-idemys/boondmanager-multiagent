@@ -108,7 +108,7 @@ def report_stage_results(stage_name: str, findings: str, next_actions: str) -> s
         >>> report_stage_results(
         ...     stage_name="Reconciliation",
         ...     findings="Processed 3 workers. 2 matched (LEGUAY: 22j ✓, GEIG: 12j ✓), 1 mismatch (LEVIN: expected 7j, found 5j)",
-        ...     next_actions="Validate timesheets for 2 workers with matching data (LEGUAY, GEIG). Report LEVIN discrepancy."
+        ...     next_actions="Validate timesheets for 2 workers with matching data (LEGUAY, GEIG). Report LEVIN discrepancy.",
         ... )
     """
     # Simple passthrough that echoes the input for reflection

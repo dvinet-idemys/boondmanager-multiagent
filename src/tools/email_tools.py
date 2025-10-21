@@ -59,9 +59,7 @@ MOCK_DRAFTS: dict[str, EmailMessage] = {}
 
 
 @tool(parse_docstring=True)
-def read_emails(
-    folder: str = "inbox", unread_only: bool = False, limit: int = 10
-) -> str:
+def read_emails(folder: str = "inbox", unread_only: bool = False, limit: int = 10) -> str:
     """Read emails from the specified folder.
 
     This is a dummy implementation that returns mock email data for testing.
@@ -156,12 +154,12 @@ def draft_email(
 
 Draft ID: {draft_id}
 From: {draft.from_address}
-To: {', '.join(draft.to_addresses)}
-CC: {', '.join(draft.cc_addresses) if draft.cc_addresses else 'None'}
+To: {", ".join(draft.to_addresses)}
+CC: {", ".join(draft.cc_addresses) if draft.cc_addresses else "None"}
 Subject: {draft.subject}
 
 Body Preview:
-{draft.body[:200]}{'...' if len(draft.body) > 200 else ''}
+{draft.body[:200]}{"..." if len(draft.body) > 200 else ""}
 """
 
 
@@ -193,9 +191,7 @@ def send_email(
         str: Confirmation message with sent email details and message ID
     """
     # Validate inputs
-    if draft_id is None and (
-        to_addresses is None or subject is None or body is None
-    ):
+    if draft_id is None and (to_addresses is None or subject is None or body is None):
         return "Error: Either provide draft_id OR (to_addresses, subject, and body)"
 
     # Generate message ID
@@ -205,7 +201,9 @@ def send_email(
     if draft_id:
         # Retrieve draft
         if draft_id not in MOCK_DRAFTS:
-            return f"❌ Error: Draft '{draft_id}' not found. Please check the draft ID and try again."
+            return (
+                f"❌ Error: Draft '{draft_id}' not found. Please check the draft ID and try again."
+            )
 
         draft = MOCK_DRAFTS[draft_id]
         email = EmailMessage(
@@ -238,8 +236,8 @@ def send_email(
 
 Message ID: {message_id}
 From: {email.from_address}
-To: {', '.join(email.to_addresses)}
-CC: {', '.join(email.cc_addresses) if email.cc_addresses else 'None'}
+To: {", ".join(email.to_addresses)}
+CC: {", ".join(email.cc_addresses) if email.cc_addresses else "None"}
 Subject: {email.subject}
 Sent at: {email.timestamp}
 

@@ -1,17 +1,10 @@
-"""Validation Agent - Handles timesheet and order validation workflows.
-
-This agent manages validation tasks that are prerequisites for invoicing and billing.
-It coordinates validation operations for timesheets, orders, and other billable elements.
-"""
-
 from pydantic import BaseModel, Field
 
+from src.experiments.manual_agent.agent import ReactAgent, Subagent
+from src.experiments.manual_agent.subagents.project import ToProjectSubagent, project_agent
+from src.experiments.manual_agent.subagents.resource import ToResourceSubagent, resource_agent
+from src.experiments.manual_agent.subagents.timesheet import ToTimesheetSubagent, timesheet_agent
 from src.llm_config import get_llm
-from src.no_tool_calls.assistant import AssistantWithSubagents, Subagent
-from src.no_tool_calls.routing import CompleteOrEscalate
-from src.no_tool_calls.subagents.project import project_subagent
-from src.no_tool_calls.subagents.resource import resource_subagent
-from src.no_tool_calls.subagents.timesheet import timesheet_subagent
 from src.tools.common_tools import total_cost
 
 QUERY_AGENT_PROMPT = """You are a specialized data query agent coordinating across multiple BoondManager CRM subagents.
@@ -114,11 +107,6 @@ Called timesheet_agent to count days on project 15 in timesheet 123 → counted 
 ```
 """
 
-tools = [
-    total_cost,
-    CompleteOrEscalate,
-]
-
 
 class ToQuerySubagent(BaseModel):
     """Transfers work to the Query Agent responsible for fetching internal data.
@@ -160,17 +148,26 @@ class ToQuerySubagent(BaseModel):
     request: str = Field(description="Open-ended question the Query Agent must respond to.")
 
 
-query_subagent = Subagent(
-    name="query",
-    full_name="Query Subagent",
-    description="",
-    node=AssistantWithSubagents(
-        get_llm(),
-        QUERY_AGENT_PROMPT,
-        tools,
-        [resource_subagent, project_subagent, timesheet_subagent],
-        name="query",
-    ),
-    tools=tools,
-    to_subagent_fn=ToQuerySubagent,
+query_agent = ReactAgent(
+    model=get_llm(),
+    system_prompt=QUERY_AGENT_PROMPT,
+    tools=[total_cost],
+    subagents=[
+        Subagent(
+            name="project",
+            agent=project_agent,
+            delegation_tool=ToProjectSubagent,
+        ),
+        Subagent(
+            name="resource",
+            agent=resource_agent,
+            delegation_tool=ToResourceSubagent,
+        ),
+        Subagent(
+            name="timesheet",
+            agent=timesheet_agent,
+            delegation_tool=ToTimesheetSubagent,
+        ),
+    ],
+    name="Query Agent",
 )

@@ -273,10 +273,12 @@ class PlanningMiddleware(AgentMiddleware):
 
         # Add current todos state if present
         if "todos" in agent_state and agent_state["todos"]:
-            todos_str = "\n".join([
-                f"  - [{todo['status'].upper()}] {todo['content']}"
-                for todo in agent_state["todos"]
-            ])
+            todos_str = "\n".join(
+                [
+                    f"  - [{todo['status'].upper()}] {todo['content']}"
+                    for todo in agent_state["todos"]
+                ]
+            )
             request.system_prompt += f"\n\n## Current Todo List\n{todos_str}"
 
         return request

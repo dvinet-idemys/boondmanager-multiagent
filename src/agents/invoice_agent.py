@@ -185,9 +185,9 @@ def create_invoice_agent(
 
     Example:
         >>> agent = create_invoice_agent()
-        >>> async for message in agent.astream({"messages": [
-        ...     ("user", "Find all invoices for project 8")
-        ... ]}):
+        >>> async for message in agent.astream(
+        ...     {"messages": [("user", "Find all invoices for project 8")]}
+        ... ):
         ...     print(message)
     """
     if model is None:
@@ -201,7 +201,7 @@ def create_invoice_agent(
             get_invoice_information,
             generate_invoice,
             count,
-            calculator
+            calculator,
         ],
         middleware=[CheckParsingFailureMiddleware()],
         system_prompt=INVOICE_AGENT_PROMPT,
@@ -257,7 +257,7 @@ async def demo_invoice_agent():
         # "Find all invoices for project 8",
         # "Give me a list of all {project: [invoices]} in the system. Calculate the total for September 2025",
         "Show me all invoices for company 5 and calculate their total",
-        "Generate invoices for project 6 in September 2025 and give me a recap"
+        "Generate invoices for project 6 in September 2025 and give me a recap",
     ]
 
     for i, query in enumerate(queries, 1):
