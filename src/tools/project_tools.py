@@ -8,7 +8,7 @@ This module provides 4 essential tools for querying BoondManager project data:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from langchain_core.tools import tool
 

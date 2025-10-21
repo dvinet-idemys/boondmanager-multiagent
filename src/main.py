@@ -17,71 +17,57 @@ from src.agents.agent import ReactAgent, Subagent
 from src.agents.subagents.emailing import ToEmailingSubagent, emailing_agent
 from src.agents.subagents.query import ToQuerySubagent, query_agent
 from src.agents.subagents.validation import ToValidationSubagent, validation_agent
+from src.indexing.index_policies import index_policies
 from src.llm_config import get_llm
+from src.tools.policy_rag_tool import (
+    create_policy_listing_tool,
+    create_policy_retrieval_tool,
+)
 
-primary_assistant_prompt = """You are the Main Orchestrator - a task decomposition and execution engine with expert prompt engineering capabilities.
-
-## ⚠️ SYSTEM CONSTRAINTS
+# TODO: implement summarization
+# TODO: move majority of policy guidance to policy tools
+primary_assistant_prompt = """You are the Main Orchestrator - a task decomposition and delegation specialist.
 
 ## Your Role
 Break complex tasks into batches of parallel subtasks and dispatch them to specialized subagents.
 
-## 🎯 CRITICAL: You are an Expert Prompt Engineer
+## 📚 CRITICAL: Use Policy Guidance
+You have access to comprehensive organizational policies through the `retrieve_policy` tool.
 
-**Important**: All subagents you dispatch to are ChatGPT-based language models (OpenAI API). Your success depends on crafting effective prompts that follow ChatGPT prompting best practices.
+**🔴 MANDATORY: Consult policies BEFORE starting any workflow**
 
-### ChatGPT Prompting Guidelines:
+Use policy retrieval for:
+- Workflow procedures (timesheet validation, discrepancy handling)
+- Delegation best practices (how to craft effective prompts)
+- Error handling protocols
+- Standard processes and templates
 
-1. **Be Explicit and Detailed**: ChatGPT models need clear, comprehensive instructions
-   - Include ALL relevant context in every prompt
-   - Don't assume the model will infer missing information
-   - Specify expected output format when needed
+**How to use**:
+```
+retrieve_policy("How should I handle timesheet validation discrepancies?")
+retrieve_policy("Best practices for delegating to query agent")
+retrieve_policy("Prompt engineering guidelines for ChatGPT subagents")
+```
 
-2. **Provide Complete Information**: Don't rely on brevity
-   - Multi-line prompts with full details are BETTER than short vague ones
-   - Include all data, constraints, and requirements upfront
-   - For tasks (emails, reports), provide complete instructions
+**Tip**: Run `list_policy_categories()` to see all available guidance.
 
-3. **Use Structured Instructions**: When tasks are complex
-   - Break down what you need the subagent to do
-   - Specify tone, format, required elements
-   - Give examples when helpful
+## Core Principles (Details in Policies)
 
-4. **Context is King**: ChatGPT performs better with more context
-   - Full names, dates, project details, specific values
-   - Background information that aids understanding
-   - Relevant data from previous steps
+1. **Explicit Context**: Subagents are ChatGPT models - provide COMPLETE information
+   - Full names (First + Last)
+   - Exact project names
+   - Specific time periods (month + year)
+   - All relevant data
 
-### Prompt Quality Examples:
+2. **Data Dependencies**: NEVER assume data - query first, use second
+   - Query email address → THEN draft email
+   - Query cost → THEN compare
 
-❌ **BAD** (too vague): "Email worker about issue"
-✅ **GOOD** (detailed): "Draft an email to Elodie LEGUAY (elodie.leguay@example.com) regarding her timesheet discrepancy for project 'Modernisation Ligne Production - Multi commande' in September 2025. Our records show she worked 15 days, but the client email reported 12 days. Ask her to review her timesheet and provide clarification. Use a professional but friendly tone. Include the project name and time period in the email for clarity."
+3. **Batch Similar Tasks**: Use batch delegation for 3+ similar operations
 
-❌ **BAD** (missing context): "Check days for worker"
-✅ **GOOD** (complete context): "How many days did Elodie LEGUAY work on project 'Modernisation Ligne Production - Multi commande' in September 2025 according to BoondManager CRA records?"
+**When uncertain about HOW to delegate → retrieve_policy("prompt engineering guidelines")**
 
-3. **DO NOT include expected values in queries** - Ask open-ended questions only
-   ✅ CORRECT: "What was total cost for worker X on project Y in September 2025?"
-   ❌ WRONG: "What was total cost for worker X who worked 22 days on project Y?"
-
-5. **🔴 DATA DEPENDENCIES** - Query data BEFORE using it:
-   - ❌ NEVER fabricate/assume data (email addresses, costs, dates)
-   - ✅ ALWAYS query unknown data first, THEN use results in next step
-   - Example: Query email → THEN draft email with actual address
-
-7. **⚠️ MAXIMIZE CONTEXT IN PROMPTS** - Include ALL available details in every prompt:
-   ✅ ALWAYS INCLUDE when available:
-   - Full worker names (First + Last)
-   - Project names/references (CRITICAL - include exact project name from email/context)
-   - Time periods (month + year: "September 2025")
-   - Client/company names when relevant
-
-   ✅ CORRECT: "How many days did Elodie LEGUAY work on project 'Modernisation Ligne Production - Multi commande' in September 2025?"
-   ❌ WRONG: "How many days did Elodie work in Sep 2025?" (missing last name and project name)
-
-   **Why this matters**: Subagents need full context to query correctly, especially project names for accurate data retrieval and validation
-
-Stay action-oriented. Batch by operation type."""
+Stay action-oriented. Consult policies proactively."""
 
 EMAIL = """
 Hi Dimitri,
@@ -103,13 +89,28 @@ async def main():
     """Example usage of the React agent with nested subagent delegation."""
 
     # ========================================================================
+    # Initialize Policy RAG System
+    # ========================================================================
+    print("📚 Initializing Policy RAG System...")
+    try:
+        policy_vectorstore = index_policies()
+        retrieve_policy = create_policy_retrieval_tool(policy_vectorstore)
+        list_policies = create_policy_listing_tool(policy_vectorstore)
+        policy_tools = [retrieve_policy, list_policies]
+        print("✅ Policy RAG tools ready\n")
+    except Exception as e:
+        print(f"⚠️  Policy RAG initialization failed: {e}")
+        print("⚠️  Continuing without policy tools...\n")
+        policy_tools = []
+
+    # ========================================================================
     # Level 1: Main Coordinator Agent
     # ========================================================================
 
     main_agent = ReactAgent(
         model=get_llm(),
         system_prompt=primary_assistant_prompt,
-        tools=[],  # Main agent has no direct tools
+        tools=policy_tools,  # Policy RAG tools available to orchestrator
         subagents=[
             Subagent(
                 name="query",

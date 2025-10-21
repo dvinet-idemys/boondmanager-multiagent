@@ -165,7 +165,7 @@ class ReactAgent(Runnable):
         """
 
         # Create list of available subagent names
-        available_names = ', '.join(s.name for s in self.subagents)
+        available_names = ", ".join(s.name for s in self.subagents)
 
         # Create simplified docstring (individual tools have their own descriptions)
         delegation_docstring = f"""Batch delegation tool for sending multiple similar requests to ONE subagent in parallel.
@@ -233,6 +233,7 @@ If you need different operations, make separate delegation tool calls.
         Returns:
             Callable that executes subagent and extracts final response as ToolMessage
         """
+
         async def wrapper(state: AgentState) -> dict:
             # Execute the subagent graph with the incoming state
             result = await subagent.agent.graph.ainvoke(state)
@@ -241,7 +242,9 @@ If you need different operations, make separate delegation tool calls.
             final_message = result["messages"][-1]
 
             # Get the content from the final message
-            content = final_message.content if hasattr(final_message, 'content') else str(final_message)
+            content = (
+                final_message.content if hasattr(final_message, "content") else str(final_message)
+            )
 
             # Extract tool_call_id from the incoming HumanMessage name field
             # (we set this in _route_to_subagents when creating Send objects)
@@ -284,10 +287,7 @@ If you need different operations, make separate delegation tool calls.
         # Add each subagent's compiled graph as a node, wrapped to extract only final response
         for subagent in self.subagents:
             # Wrap subagent to return only final message as ToolMessage
-            graph.add_node(
-                subagent.name,
-                self._create_subagent_wrapper(subagent)
-            )
+            graph.add_node(subagent.name, self._create_subagent_wrapper(subagent))
 
         # Add edges
         graph.add_edge(START, "llm")
@@ -385,7 +385,7 @@ If you need different operations, make separate delegation tool calls.
                                     "name": delegation_tool_name,
                                     "args": {"requests": request_str},
                                     "id": f"{tool_call['id']}__{idx}",  # Unique ID per request
-                                    "type": "tool_call"
+                                    "type": "tool_call",
                                 }
                                 expanded_tool_calls.append(individual_call)
                     else:
@@ -394,10 +394,8 @@ If you need different operations, make separate delegation tool calls.
 
                 # Replace tool_calls in the AI message
                 from langchain_core.messages import AIMessage
-                new_ai_message = AIMessage(
-                    content=msg.content,
-                    tool_calls=expanded_tool_calls
-                )
+
+                new_ai_message = AIMessage(content=msg.content, tool_calls=expanded_tool_calls)
                 messages[i] = new_ai_message
                 break
 
@@ -448,10 +446,14 @@ If you need different operations, make separate delegation tool calls.
                     sends.append(
                         Send(
                             subagent.name,
-                            {"messages": [HumanMessage(
-                                content=request_content,
-                                name=tool_call["id"]  # Store tool_call_id in name field
-                            )]},
+                            {
+                                "messages": [
+                                    HumanMessage(
+                                        content=request_content,
+                                        name=tool_call["id"],  # Store tool_call_id in name field
+                                    )
+                                ]
+                            },
                         )
                     )
 
@@ -487,8 +489,7 @@ If you need different operations, make separate delegation tool calls.
         for tool_call in last_message.tool_calls:
             tool_name = tool_call["name"]
             # If it's a delegation tool, route to subagents
-            if (tool_name == self._delegation_tool_name or
-                tool_name in self.subagent_by_tool_name):
+            if tool_name == self._delegation_tool_name or tool_name in self.subagent_by_tool_name:
                 # Return Send objects directly from LLM node
                 return self._route_to_subagents(state)
 
