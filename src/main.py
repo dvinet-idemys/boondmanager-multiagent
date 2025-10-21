@@ -1,23 +1,23 @@
+"""
+Main entry point for the React Agent with nested subagent delegation.
+
+This demonstrates a 3-level hierarchy:
+- Level 1: Main coordinator (delegates to weather/calculator)
+- Level 2: Calculator coordinator (delegates to addition/multiplication)
+- Level 3: Leaf specialists (execute actual tools)
+"""
+
 import asyncio
 import uuid
 
+from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 
+from src.agents.agent import ReactAgent, Subagent
+from src.agents.subagents.emailing import ToEmailingSubagent, emailing_agent
+from src.agents.subagents.query import ToQuerySubagent, query_agent
+from src.agents.subagents.validation import ToValidationSubagent, validation_agent
 from src.llm_config import get_llm
-from src.no_tool_calls.assistant import AssistantWithSubagents
-from src.no_tool_calls.subagents.query import query_subagent
-
-primary_assistant_prompt = """
-You are a helpful HR assistant for our small company.
-Your primary role is to search within our HR database to answer customer queries.
-If a user requests information, or to do an action,
-delegate the task to the appropriate specialized assistant by invoking the corresponding tool. You are not able to make these types of changes yourself.
-Only the specialized assistants are given permission to do this for the user.
-The user is not aware of the different specialized assistants, so do not mention them; just quietly delegate through function calls.
-Provide detailed information to the customer, and always double-check the database before concluding that information is unavailable.
-When delegating, be persistent. Expand your query bounds if the first query returns no results.
-If a search comes up empty, expand your search before giving up.
-"""
 
 primary_assistant_prompt = """You are the Main Orchestrator - a task decomposition and execution engine with expert prompt engineering capabilities.
 
@@ -99,13 +99,46 @@ GEIG Didier         22j             14432
 """
 
 
-async def main() -> int:
-    # Example queries
+async def main():
+    """Example usage of the React agent with nested subagent delegation."""
+
+    # ========================================================================
+    # Level 1: Main Coordinator Agent
+    # ========================================================================
+
+    main_agent = ReactAgent(
+        model=get_llm(),
+        system_prompt=primary_assistant_prompt,
+        tools=[],  # Main agent has no direct tools
+        subagents=[
+            Subagent(
+                name="query",
+                agent=query_agent,
+                delegation_tool=ToQuerySubagent,
+            ),
+            Subagent(
+                name="validation",
+                agent=validation_agent,
+                delegation_tool=ToValidationSubagent,
+            ),
+            Subagent(
+                name="emailing",
+                agent=emailing_agent,
+                delegation_tool=ToEmailingSubagent,
+            ),
+        ],
+        name="Main Coordinator",
+    )
+
+    # ========================================================================
+    # Example Queries
+    # ========================================================================
+
     queries = [
-        f"""
-        Verify days worked and totals for each worker in this email.
-        {EMAIL}
-        """,
+        # f"""
+        # Verify days worked and totals for each worker in this email.
+        # {EMAIL}
+        # """,
         # f"""
         # Validate timesheets when days worked and totals match.
         # Query results:
@@ -114,27 +147,24 @@ async def main() -> int:
         # Original Email:
         # {EMAIL}
         # """,
-        # f"""
-        # Validate timesheets when days worked and totals match.
-        # Query results:
-        # LEGUAY Elodie       15j             7860
-        # GEIG Didier         22j             14432
-        # Original Email:
-        # {EMAIL}
-        # """,
-        # f"""
-        # Generate invoices for projects in this email. Check that each worker's timesheet
-        # were validated. Only generate invoices for projects where all timesheets were
-        # validated.
-        # Original Email:
-        # {EMAIL}
-        # """,
+        f"""
+        Validate timesheets when days worked and totals match.
+        Send an email to the worker when they don't.
+        Then instruct the emailing agent to wait for a response.
+        Query results:
+        LEGUAY Elodie       15j             9300
+        Original Email:
+        {EMAIL}
+        """,
     ]
+    # GEIG Didier         22j             14432
 
     for query in queries:
-        print("==========" + query + "==========")
-        thread_id = str(uuid.uuid4())
+        print(f"\n{'=' * 60}")
+        print(f"Query: {query}")
+        print("=" * 60)
 
+        thread_id = str(uuid.uuid4())
         config = {
             "configurable": {
                 # Checkpoints are accessed by thread_id
@@ -142,27 +172,17 @@ async def main() -> int:
             }
         }
 
-        graph = AssistantWithSubagents(
-            get_llm(), primary_assistant_prompt, [], [query_subagent]
-        ).runnable
-        # print(graph.get_graph(xray=True).draw_mermaid())
+        result = await main_agent.ainvoke([HumanMessage(content=query)], config)
 
-        ret = await graph.ainvoke(
-            {
-                "messages": [query],
-            },
-            config=config,
-        )
-
-        int_res = (i for i in range(100))
-
-        # print(ret)
-        while (interrupt := ret.get("__interrupt__")) is not None:
+        while (interrupt := result.get("__interrupt__")) is not None:
             print(interrupt)
-            ret = await graph.ainvoke(Command(resume=next(int_res)), config=config)
+            resume = input("your response here: ")
+            result = await main_agent.ainvoke(Command(resume=resume), config=config)
 
-    return 0
+        # Print final response
+        final_message = result["messages"][-1]
+        print(f"\nFinal Answer: {final_message.content}")
 
 
 if __name__ == "__main__":
-    raise SystemExit(asyncio.run(main()))
+    asyncio.run(main())

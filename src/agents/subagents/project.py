@@ -1,16 +1,9 @@
 """Standalone project agent for fetching and parsing BoondManager project data."""
 
-import asyncio
-from typing import Any
+from pydantic import BaseModel, Field
 
-from langchain.agents import AgentState, create_agent
-from langchain_core.language_models import BaseChatModel
-from langchain_core.tools import tool
-from langgraph.graph.state import CompiledStateGraph
-from langgraph.types import Command
-
+from src.agents.agent import ReactAgent
 from src.llm_config import get_llm
-from src.middleware.parse_fail_check import CheckParsingFailureMiddleware
 from src.tools.project_tools import (
     get_project_by_id,
     get_project_deliveries,
@@ -129,55 +122,18 @@ Extracted 2 workers with their IDs from productivity data.
 ```
 """
 
-PROJECT_AGENT_NODE = "project_agent"
+tools = [
+    search_projects,
+    get_project_by_id,
+    get_project_productivity,
+    get_project_orders,
+    get_project_deliveries,
+]
 
 
-async def project_agent_node(state: AgentState):
-    ret = await create_project_agent().ainvoke({"messages": state["messages"][-1]})
+class ToProjectSubagent(BaseModel):
+    """Transfers work to the Project Agent responsible for fetching internal data.
 
-    return {"messages": [ret.get("messages", [""])[-1].content]}
-
-
-def create_project_agent(
-    model: BaseChatModel | None = None,
-) -> CompiledStateGraph[AgentState, Any, AgentState, AgentState]:
-    """Create a standalone project agent with all project-related tools.
-
-    Args:
-        model: LLM model to use. If None, uses default from llm_config.
-
-    Returns:
-        Configured LangGraph agent ready to handle project queries.
-
-    Example:
-        >>> agent = create_project_agent()
-        >>> async for message in agent.astream(
-        ...     {"messages": [("user", "Fetch the project id for project alpha")]}
-        ... ):
-        ...     print(message)
-    """
-    if model is None:
-        model = get_llm()
-
-    agent = create_agent(
-        model,
-        tools=[
-            search_projects,
-            get_project_by_id,
-            get_project_productivity,
-            get_project_orders,
-            get_project_deliveries,
-        ],
-        middleware=[CheckParsingFailureMiddleware()],
-        system_prompt=PROJECT_AGENT_PROMPT,
-    )
-
-    return agent
-
-
-@tool(parse_docstring=True)
-async def project_agent_tool(prompt: str):
-    """
     ## Core Capabilities
 
     ### Project Discovery
@@ -193,49 +149,14 @@ async def project_agent_tool(prompt: str):
 
     ### Deliveries
     - Deliveries are units of work done by workers on projects.
-    - Get the average daily price excluding tax of workers associated with the project
+    - Get the average daily price excluding tax of workers associated with the project"""
 
-    Args:
-        prompt (str): A clear and concise prompt to send to the agent as input.
-    """
-
-    ret = await create_project_agent().ainvoke({"messages": prompt})
-
-    return ret.get("messages", [""])[-1].content
+    request: str = Field(description="Open-ended question the Project Agent must respond to.")
 
 
-async def demo_project_agent():
-    """Demo function to test the project agent with example queries."""
-    print("=== BoondManager Project Agent Demo ===\n")
-
-    agent = create_project_agent()
-
-    # Example queries
-    queries = [
-        # "Fetch the project id for project modernisation",
-        # "give me a json list of project names and their id",
-        # "Give me names and ids for workers associated with project id 8",
-        # "What projects are associated with company Roche ?",
-        # "give me all the information you have on projects for Veolia"
-        # "give me all client names and their projects"
-        "find projects where elodie leguay is working.  what is her daily rate without tax. explain your reasoning"
-    ]
-
-    for i, query in enumerate(queries, 1):
-        print(f"\n--- Query {i}: {query} ---")
-        try:
-            async for message in agent.astream({"messages": [("user", query)]}):
-                # Print the agent's response
-                response = message.get("tools", {}) or message.get("model", {})
-                for msg in response.get("messages", []):
-                    if hasattr(msg, "content") and msg.content:
-                        print(f"Agent: {msg.content}")
-        except Exception as e:
-            print(f"Error: {e}")
-            print(message)
-        print("-" * 50)
-
-
-if __name__ == "__main__":
-    # Run the demo
-    asyncio.run(demo_project_agent())
+project_agent = ReactAgent(
+    model=get_llm(),
+    system_prompt=PROJECT_AGENT_PROMPT,
+    tools=tools,
+    name="Project Agent",
+)

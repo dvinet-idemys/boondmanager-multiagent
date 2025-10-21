@@ -1,15 +1,9 @@
 """Standalone timesheet agent for fetching and parsing BoondManager timesheet data."""
 
-import asyncio
-from typing import Any
+from pydantic import BaseModel, Field
 
-from langchain.agents import AgentState, create_agent
-from langchain_core.language_models import BaseChatModel
-from langchain_core.tools import tool
-from langgraph.graph.state import CompiledStateGraph
-
+from src.agents.agent import ReactAgent
 from src.llm_config import get_llm
-from src.middleware.parse_fail_check import CheckParsingFailureMiddleware
 from src.tools.common_tools import count
 from src.tools.timesheet_tools import get_resource_timesheets, get_timesheet_by_id
 
@@ -120,98 +114,26 @@ Used count tool to verify: counted 18 total days (15 production + 3 internal).
 ```
 """
 
-
-TIMESHEET_AGENT_NODE = "timesheet_agent"
-
-
-async def timesheet_agent_node(state: AgentState):
-    ret = await create_timesheet_agent().ainvoke({"messages": state["messages"][-1]})
-
-    return {"messages": [ret.get("messages", [""])[-1].content]}
+tools = [get_resource_timesheets, get_timesheet_by_id, count]
 
 
-def create_timesheet_agent(
-    model: BaseChatModel | None = None,
-) -> CompiledStateGraph[AgentState, Any, AgentState, AgentState]:
-    """Create a standalone timesheet agent with all timesheet-related tools.
+class ToTimesheetSubagent(BaseModel):
+    """Transfers work to the Timesheet Agent responsible for fetching internal data.
 
-    Args:
-        model: LLM model to use. If None, uses default from llm_config.
-
-    Returns:
-        Configured LangGraph agent ready to handle timesheet queries.
-
-    Example:
-        >>> agent = create_timesheet_agent()
-        >>> async for message in agent.astream(
-        ...     {"messages": [("user", "Get all timesheets for worker 28")]}
-        ... ):
-        ...     print(message)
-    """
-    if model is None:
-        model = get_llm()
-
-    agent = create_agent(
-        model,
-        tools=[get_resource_timesheets, get_timesheet_by_id, count],
-        middleware=[CheckParsingFailureMiddleware()],
-        system_prompt=TIMESHEET_AGENT_PROMPT,
-    )
-
-    return agent
-
-
-@tool(parse_docstring=True)
-async def timesheet_agent_tool(prompt: str):
-    """
     ## Core Capabilities
 
     ### Timesheet Discovery
     - This returns a list of timesheets (by month/period) for that worker
 
     ### Timesheet Details
-    - This shows day-by-day breakdown of what the worker did
+    - This shows day-by-day breakdown of what the worker did"""
 
-    Args:
-        prompt (str): A clear and concise prompt to send to the agent as input.
-    """
-
-    ret = await create_timesheet_agent().ainvoke({"messages": prompt})
-
-    return ret.get("messages", [""])[-1].content
+    request: str = Field(description="Open-ended question the Project Agent must respond to.")
 
 
-async def demo_timesheet_agent():
-    """Demo function to test the timesheet agent with example queries."""
-    print("=== BoondManager Timesheet Agent Demo ===\n")
-
-    agent = create_timesheet_agent()
-
-    # Example queries
-    queries = [
-        # "Get all timesheets for worker 28",
-        # "Show me the daily entries for timesheet 5",
-        # "What projects did worker 28 work on in timesheet 5?",
-        "How many days did worker 28 have in september 2025 ?",
-        "How many days did worker 28 have in september 2025 per type of work ?",
-        "How many days did worker 28 have in october 2025 ?",
-    ]
-
-    for i, query in enumerate(queries, 1):
-        print(f"\n--- Query {i}: {query} ---")
-        try:
-            async for message in agent.astream({"messages": [("user", query)]}):
-                # Print the agent's response
-                response = message.get("tools", {}) or message.get("model", {})
-                for msg in response.get("messages", []):
-                    if hasattr(msg, "content") and msg.content:
-                        print(f"Agent: {msg.content}")
-        except Exception as e:
-            print(f"Error: {e}")
-            print(message)
-        print("-" * 50)
-
-
-if __name__ == "__main__":
-    # Run the demo
-    asyncio.run(demo_timesheet_agent())
+timesheet_agent = ReactAgent(
+    model=get_llm(),
+    system_prompt=TIMESHEET_AGENT_PROMPT,
+    tools=tools,
+    name="Timesheet Agent",
+)

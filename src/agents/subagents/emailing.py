@@ -1,17 +1,7 @@
-"""Emailing agent for reading, drafting, and sending emails."""
+from pydantic import BaseModel, Field
 
-import asyncio
-from typing import Any
-
-from langchain.agents import AgentState, create_agent
-from langchain.agents.middleware import HumanInTheLoopMiddleware
-from langchain_core.language_models import BaseChatModel
-from langchain_core.tools import tool
-from langgraph.graph.state import CompiledStateGraph
-
-from src.format_utils import format_message
+from src.agents.agent import ReactAgent
 from src.llm_config import get_llm
-from src.middleware.parse_fail_check import CheckParsingFailureMiddleware
 from src.tools.email_tools import (
     draft_email,
     mark_email_as_read,
@@ -173,40 +163,16 @@ DETAILS:
 You are precise, professional, and reliable. Handle all email operations with care and attention to detail.
 """
 
-
-def create_emailing_agent(
-    model: BaseChatModel | None = None,
-) -> CompiledStateGraph[AgentState, Any, AgentState, AgentState]:
-    """Create a standalone emailing agent for email operations.
-
-    Args:
-        model: LLM model to use. If None, uses default from llm_config.
-
-    Returns:
-        Configured LangGraph agent ready to handle email operations.
-    """
-    if model is None:
-        model = get_llm()
-
-    agent = create_agent(
-        model,
-        tools=[
-            read_emails,
-            draft_email,
-            send_email,
-            mark_email_as_read,
-        ],
-        middleware=[
-            CheckParsingFailureMiddleware(),
-        ],
-        system_prompt=EMAILING_AGENT_PROMPT,
-    )
-
-    return agent
+tools = [
+    read_emails,
+    draft_email,
+    send_email,
+    mark_email_as_read,
+    wait_for_email,
+]
 
 
-@tool(parse_docstring=True)
-async def emailing_agent_tool(prompt: str):
+class ToEmailingSubagent(BaseModel):
     """⚠️ ROUTE ALL EMAIL OPERATIONS HERE - Professional email management agent.
 
     This agent handles ALL email-related operations with business-grade professionalism
@@ -256,46 +222,18 @@ async def emailing_agent_tool(prompt: str):
     - Provide clear instructions for email content and tone
     - For workflows, specify complete sequence (read → draft → send)
     - Include time-sensitive details (dates, invoice numbers, project names)
-
-    Args:
-        prompt (str): Email operation request (read, draft, send, notify, or workflow instruction).
     """
-    async for message in create_emailing_agent().astream({"messages": [("user", prompt)]}):
-        # Get agent response
-        response = message.get("tools", {}) or message.get("model", {})
-        for msg in response.get("messages", []):
-            format_message(msg, pad_left=2)
 
-    return msg.content
+    request: str = Field(
+        # TODO: not very clear
+        description="Email operation request (read, draft, send, notify, or workflow instruction)."
+    )
 
 
-async def demo_emailing_agent():
-    """Demo function to test the emailing agent with example operations."""
-    print("=== Email Management Agent Demo ===\n")
-
-    agent = create_emailing_agent()
-
-    # Example email operations
-    operations = [
-        # "Show me all unread emails",
-        "Draft an email to billing@example.com confirming invoice #12345 has been processed",
-        # "Send a project update email to team@company.com about the successful deployment",
-        # "Mark email email-001 as read",
-    ]
-
-    for i, operation in enumerate(operations, 1):
-        print(f"\n--- Operation {i}: {operation} ---")
-        try:
-            async for message in agent.astream({"messages": [("user", operation)]}):
-                response = message.get("tools", {}) or message.get("model", {})
-                for msg in response.get("messages", []):
-                    format_message(msg)
-        except Exception as e:
-            print(f"Error: {e}")
-
-        print("-" * 70)
-
-
-if __name__ == "__main__":
-    # Run the demo
-    asyncio.run(demo_emailing_agent())
+emailing_agent = ReactAgent(
+    model=get_llm(),
+    system_prompt=EMAILING_AGENT_PROMPT,
+    tools=tools,
+    subagents=[],
+    name="Emailing Agent",
+)

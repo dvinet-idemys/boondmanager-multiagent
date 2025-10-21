@@ -1,9 +1,9 @@
 from pydantic import BaseModel, Field
 
-from src.experiments.manual_agent.agent import ReactAgent, Subagent
-from src.experiments.manual_agent.subagents.project import ToProjectSubagent, project_agent
-from src.experiments.manual_agent.subagents.resource import ToResourceSubagent, resource_agent
-from src.experiments.manual_agent.subagents.timesheet import ToTimesheetSubagent, timesheet_agent
+from src.agents.agent import ReactAgent, Subagent
+from src.agents.subagents.project import ToProjectSubagent, project_agent
+from src.agents.subagents.resource import ToResourceSubagent, resource_agent
+from src.agents.subagents.timesheet import ToTimesheetSubagent, timesheet_agent
 from src.llm_config import get_llm
 from src.tools.validation_tool import unvalidate_timesheet, validate_timesheet
 

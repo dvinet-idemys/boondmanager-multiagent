@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from src.experiments.manual_agent.agent import ReactAgent
+from src.agents.agent import ReactAgent
 from src.llm_config import get_llm
 from src.tools.resource_tools import (
     get_resource_by_id,
