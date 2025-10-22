@@ -382,6 +382,17 @@ class BoondManagerClient:
     # Invoice Management
     # ========================================================================
 
+    async def delete_invoice(self, invoice_id: int) -> dict[str, Any]:
+        """Delete an invoice by ID.
+
+        Args:
+            invoice_id: Invoice unique identifier
+
+        Returns:
+            Status data confirming deletion
+        """
+        return await self._make_request(f"invoices/{invoice_id}", method="DELETE")
+
     async def search_invoices(
         self,
         invoice_id: Optional[int] = None,

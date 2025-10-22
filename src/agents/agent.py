@@ -13,6 +13,7 @@ from typing import Annotated, Any
 from langchain.tools.tool_node import _ToolNode as ToolNode
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import (
+    AIMessage,
     BaseMessage,
     HumanMessage,
     SystemMessage,
@@ -25,9 +26,11 @@ from langgraph.errors import GraphInterrupt
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import tools_condition
-from langgraph.types import Send, interrupt
+from langgraph.types import Send
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
+
+# TODO: add unsafe tools
 
 
 def handle_tool_error(state) -> dict:
@@ -61,6 +64,96 @@ def create_tool_node_with_fallback(tools: list) -> dict:
     )
 
 
+# ============================================================================
+# Response Processing Utilities
+# ============================================================================
+
+
+def has_extended_content_format(response: AIMessage) -> bool:
+    """Check if response has extended content format (list with reasoning).
+
+    Args:
+        response: LLM response message
+
+    Returns:
+        True if response has extended format, False otherwise
+    """
+    return hasattr(response, "content") and isinstance(response.content, list)
+
+
+def extract_reasoning_from_content(content: list) -> list[str]:
+    """Extract reasoning text from LLM response content list.
+
+    Args:
+        content: List of content items from LLM response
+
+    Returns:
+        List of reasoning text strings
+    """
+    reasoning_texts = []
+
+    for item in content:
+        if isinstance(item, dict) and item.get("type") == "reasoning":
+            reasoning_content = item.get("content", [])
+            for reasoning_item in reasoning_content:
+                if (
+                    isinstance(reasoning_item, dict)
+                    and reasoning_item.get("type") == "reasoning_text"
+                ):
+                    text = reasoning_item.get("text", "")
+                    if text:
+                        reasoning_texts.append(text)
+
+    return reasoning_texts
+
+
+def filter_reasoning_from_content(content: list) -> list:
+    """Filter out reasoning blocks from LLM response content list.
+
+    Args:
+        content: List of content items from LLM response
+
+    Returns:
+        Filtered content list without reasoning blocks
+    """
+    return [
+        item for item in content if not (isinstance(item, dict) and item.get("type") == "reasoning")
+    ]
+
+
+def extract_text_from_content_items(content_items: list) -> str:
+    """Extract plain text from content items.
+
+    Args:
+        content_items: List of content items with "text" fields
+
+    Returns:
+        Concatenated text string
+    """
+    text_parts = [item.get("text", "") for item in content_items if isinstance(item, dict)]
+    return "\n".join(text_parts)
+
+
+def create_clean_ai_message(response: AIMessage, text_content: str) -> AIMessage:
+    """Create clean AIMessage with text content and preserved attributes.
+
+    Args:
+        response: Original LLM response
+        text_content: Clean text content to use
+
+    Returns:
+        New AIMessage with clean content and preserved attributes
+    """
+    return AIMessage(
+        content=text_content,
+        tool_calls=getattr(response, "tool_calls", []),
+        additional_kwargs=getattr(response, "additional_kwargs", {}),
+        response_metadata=getattr(response, "response_metadata", {}),
+        id=getattr(response, "id", None),
+        usage_metadata=getattr(response, "usage_metadata", None),
+    )
+
+
 @dataclass
 class Subagent:
     """Configuration for a subagent with its delegation tool.
@@ -85,6 +178,7 @@ class AgentState(TypedDict):
     """State for the React agent."""
 
     messages: Annotated[list[BaseMessage], add_messages]
+    thoughts: list[str]  # Stores reasoning traces from LLM responses
 
 
 # ============================================================================
@@ -329,11 +423,16 @@ If you need different operations, make separate delegation tool calls.
     def _call_llm(self, state: AgentState) -> dict:
         """Call the LLM with system prompt and current messages.
 
+        Handles extended response format with reasoning content:
+        - Extracts reasoning traces and stores in thoughts
+        - Filters reasoning from message content
+        - Converts content list to plain text string
+
         Args:
             state: Current agent state with messages
 
         Returns:
-            Updated state with LLM response
+            Updated state with LLM response and extracted reasoning
         """
         messages = state["messages"]
 
@@ -342,8 +441,34 @@ If you need different operations, make separate delegation tool calls.
             messages = [SystemMessage(content=self.system_prompt)] + messages
 
         response = self.llm_with_tools.invoke(messages)
+        print(response)
 
-        return {"messages": [response]}
+        # Process response content if in extended format (list)
+        reasoning_texts = []
+        clean_message = response
+
+        if has_extended_content_format(response):
+            # Extract reasoning traces
+            reasoning_texts = extract_reasoning_from_content(response.content)
+
+            # Filter out reasoning blocks
+            filtered_content = filter_reasoning_from_content(response.content)
+
+            # Convert filtered content to plain text
+            if filtered_content:
+                text_content = extract_text_from_content_items(filtered_content)
+                clean_message = create_clean_ai_message(response, text_content)
+
+        # Build state update
+        state_update = {"messages": [clean_message]}
+
+        # Update thoughts with reasoning traces
+        existing_thoughts = state.get("thoughts", [])
+        state_update["thoughts"] = (
+            existing_thoughts + reasoning_texts if reasoning_texts else existing_thoughts or []
+        )
+
+        return state_update
 
     def _expand_batch_tool_calls(self, state: AgentState) -> AgentState:
         """Expand batch delegation tool calls into individual tool calls.
@@ -393,8 +518,6 @@ If you need different operations, make separate delegation tool calls.
                         expanded_tool_calls.append(tool_call)
 
                 # Replace tool_calls in the AI message
-                from langchain_core.messages import AIMessage
-
                 new_ai_message = AIMessage(content=msg.content, tool_calls=expanded_tool_calls)
                 messages[i] = new_ai_message
                 break

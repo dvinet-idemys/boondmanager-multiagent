@@ -18,8 +18,17 @@ def get_llm() -> BaseChatModel:
     Returns:
         Configured BaseChatModel instance (ChatOpenAI, ChatOllama, etc.)
     """
+    reasoning = {
+        "effort": "medium",  # 'low', 'medium', or 'high'
+        "summary": "auto",  # 'detailed', 'auto', or None
+    }
+
     return ChatOpenAI(
-        model=LLM_MODEL, temperature=LLM_TEMPERATURE, base_url=LLM_BASE_URL, api_key=LLM_API_KEY
+        model=LLM_MODEL,
+        temperature=LLM_TEMPERATURE,
+        base_url=LLM_BASE_URL,
+        api_key=LLM_API_KEY,
+        reasoning=reasoning,
     )
 
 

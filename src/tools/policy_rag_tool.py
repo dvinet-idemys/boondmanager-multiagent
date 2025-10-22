@@ -45,13 +45,14 @@ def create_policy_retrieval_tool(vectorstore: InMemoryVectorStore):
                    - "What's the standard process for emailing workers?"
                    - "Best practices for delegating to query agent"
                    - "How to handle API errors?"
-            top_k: Number of relevant policy sections to retrieve (default: 10, min: 5)
+            top_k: Number of relevant policy sections to retrieve (min: 2, max: 10)
 
         Returns:
             Tuple of (serialized policy content, raw Document objects)
             The content includes relevant excerpts from policy documents with source metadata.
         """
-        top_k = max(top_k, 5)
+        top_k = max(top_k, 2)
+        top_k = min(top_k, 10)
 
         # Perform similarity search
         retrieved_docs = vectorstore.similarity_search(query, k=top_k)

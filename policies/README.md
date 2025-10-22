@@ -53,6 +53,22 @@ This directory contains organizational policies and process documentation that t
 
 **Use When**: Orchestrator needs detailed guidance on how to craft high-quality delegation prompts.
 
+### 5. `invoice_generation_workflow.md`
+**Purpose**: Complete workflow for generating, verifying, and managing invoices
+
+**Key Topics**:
+- Prerequisites and timing requirements
+- Multi-phase invoice generation workflow (Preparation → Generation → Verification → Reporting)
+- Delegation best practices for Invoice Agent
+- Business rules and client-specific requirements
+- Error handling and recovery procedures
+- Data consistency checks and verification
+- Integration with timesheet validation workflow
+- Escalation criteria and communication patterns
+- Comprehensive examples and templates
+
+**Use When**: Orchestrator needs to generate invoices, verify invoice data, handle invoice-related queries, or troubleshoot invoice generation issues.
+
 ## How Policies Are Used
 
 ### Automatic Indexing
@@ -71,6 +87,10 @@ retrieve_policy("How should I handle timesheet validation discrepancies?")
 retrieve_policy("Best practices for delegating to query agent")
 retrieve_policy("What to do when API calls fail?")
 retrieve_policy("Prompt engineering guidelines for ChatGPT subagents")
+retrieve_policy("How do I generate invoices for a project?")
+retrieve_policy("Invoice verification procedures after generation")
+retrieve_policy("What are the prerequisites before generating invoices?")
+retrieve_policy("When should I escalate invoice generation issues?")
 ```
 
 ### Benefits

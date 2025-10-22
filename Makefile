@@ -18,6 +18,9 @@ lms-start:
 		--gpu=max \
 		--context-length=4096
 
+	${LMS} load text-embedding-nomic-embed-text-v1.5 \
+		--gpu=max \
+
 lms-stop:
 	${LMS} server stop
 

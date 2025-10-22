@@ -329,90 +329,19 @@ async def generate_invoice(
         generate_invoice(month="2025-10", project_id=8, resource_id=28)
         → Generate invoices for specific consultant on project 8
     """
-    # TODO: Uncomment when ready to test real invoice generation
-    # client = BoondManagerClient()
-    logger.info(
-        f"Generating invoice for project {project_id} in month {month} "
-        f"with filters: delivery={delivery_id}, resource={resource_id}, "
-        f"contact={contact_id}, company={company_id}"
-    )
+    client = BoondManagerClient()
 
     try:
-        # TODO: Uncomment when ready to test real invoice generation
-        # result = await client.generate_invoice(
-        #     month=month,
-        #     project_id=project_id,
-        #     delivery_id=delivery_id,
-        #     resource_id=resource_id,
-        #     contact_id=contact_id,
-        #     company_id=company_id,
-        # )
+        result = await client.generate_invoice(
+            month=month,
+            project_id=project_id,
+            delivery_id=delivery_id,
+            resource_id=resource_id,
+            contact_id=contact_id,
+            company_id=company_id,
+        )
 
-        # TEMPORARY: Return dummy response for development/testing
-        logger.warning("⚠️ Using dummy response - actual API call is commented out")
-        result = {
-            "meta": {
-                "version": "4.0.0",
-                "isLogged": True,
-                "language": "en",
-                "totals": {"rows": 1},
-                "isDummyResponse": True,
-            },
-            "data": [
-                {
-                    "id": str(project_id),
-                    "type": "apppostproductionproject",
-                    "attributes": {
-                        "reference": f"Project-{project_id}",
-                        "typeOf": 1,
-                        "mode": 1,
-                        "currency": 1,
-                        "exchangeRate": 1.0,
-                        "currencyAgency": 1,
-                        "exchangeRateAgency": 1.0,
-                        "turnoverProductionExcludingTax": 12000.00,
-                        "turnoverInvoicedExcludingTax": 12000.00,
-                        "productionTerm": month,
-                        "additionalTurnoverAndCosts": [],
-                        "numberOfOrders": 1,
-                        "workUnitRate": 1,
-                        "canGenerateInvoices": True,
-                        "productionComments": f"Invoice generated for {month}",
-                    },
-                    "relationships": {
-                        "contact": {
-                            "data": {"id": str(contact_id or 1), "type": "contact"}
-                            if contact_id
-                            else None
-                        },
-                        "company": {"data": {"id": str(company_id or 5), "type": "company"}},
-                        "deliveries": {
-                            "data": [
-                                {
-                                    "id": str(delivery_id or 1),
-                                    "type": "apppostproductiondelivery",
-                                }
-                            ]
-                            if delivery_id
-                            else []
-                        },
-                        "schedules": {"data": []},
-                        "purchases": {"data": []},
-                    },
-                }
-            ],
-            "included": [
-                {
-                    "id": str(company_id or 5),
-                    "type": "company",
-                    "attributes": {"name": "Client Company"},
-                }
-            ],
-        }
-
-        logger.info(f"✅ (DUMMY) Generated invoice {result['data'][0]['attributes']['reference']}")
         return result
-
     except Exception as e:
         logger.error(f"Error generating invoice: {e}")
         return {

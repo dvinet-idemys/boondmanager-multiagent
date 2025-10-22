@@ -88,6 +88,9 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --cov=src --cov-report=html --cov-report=term"
 asyncio_mode = "auto"
+markers = [
+    "e2e"
+]
 
 [dependency-groups]
 dev = [
